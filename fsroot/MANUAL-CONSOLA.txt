@@ -1,0 +1,32 @@
+MANUAL RAPIDO DE CONSOLA — AntLex OS
+====================================
+
+Comandos (nombre espanol / alias ingles):
+
+  ayuda [cmd]          / help        lista de comandos o detalle de uno
+  ver                  / version     version, memoria, teclado y disco
+  eco <texto>          / echo        muestra texto
+  limpiar              / cls         borra la pantalla
+  lista [ruta]         / ls          contenido de un directorio
+  ir <ruta>            / cd          cambia de directorio
+  ruta                 / pwd         directorio actual
+  mostrar <archivo>    / cat         muestra un archivo de texto
+  escribir <arch> <texto> / write    crea o sustituye un archivo
+  anexar <arch> <texto>   / append   anade texto al final de un archivo
+  nuevodir <nombre>    / mkdir       crea un directorio
+  borrar <ruta>        / rm          borra archivo o directorio vacio
+  copiar <origen> <destino> / cp     copia un archivo
+  espacio              / df          espacio libre del volumen ALFS
+  sincronizar          / sync        escribe los cambios al disco
+  teclado es|us                      cambia la distribucion del teclado
+
+Notas:
+
+  * Los cambios en archivos viven en memoria hasta que ejecutas
+    'sincronizar'. Si apagas sin sincronizar, se pierden.
+  * Las rutas absolutas empiezan por '/' (por ejemplo /ejemplos/NOTA-1.TXT);
+    las relativas parten del directorio actual. Los nombres no distinguen
+    mayusculas de minusculas.
+  * Los nombres de archivo no pueden llevar espacios ni '/' y miden como
+    maximo 44 caracteres.
+  * Ctrl+C cancela la linea actual.

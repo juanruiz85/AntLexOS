@@ -45,8 +45,12 @@ import sys
 ver, fecha, resumen = sys.argv[1:4]
 ruta = "CHANGELOG.md"
 viejo = open(ruta, encoding="utf-8").read()
-entrada = f"## [v{ver}] - {fecha}\n\n### {resumen}\n\n- Arranque, pruebas y artefactos: ver `docs/PRUEBAS.md` (versión {ver}).\n\n"
-open(ruta, "w", encoding="utf-8").write(entrada + viejo)
+if f"## [v{ver}]" in viejo:
+    # ya hay una sección detallada escrita a mano para esta versión
+    print(f"CHANGELOG: se conserva la sección v{ver} existente")
+else:
+    entrada = f"## [v{ver}] - {fecha}\n\n### {resumen}\n\n- Arranque, pruebas y artefactos: ver `docs/PRUEBAS.md` (versión {ver}).\n\n"
+    open(ruta, "w", encoding="utf-8").write(entrada + viejo)
 EOF
 
 git add -A

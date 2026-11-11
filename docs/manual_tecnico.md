@@ -1,4 +1,4 @@
-# Manual técnico — AntLex OS v0.1.0
+# Manual técnico — AntLex OS v0.2.0
 
 Documento de referencia interna para desarrollar y depurar el sistema.
 Público: quien quiera entender cómo funciona por dentro o continuar el
@@ -60,6 +60,12 @@ stage2 se ensambla con `-D CD=1` (offsets LBA divididos por 2048).
 ```
 
 ## 3. Protocolo `boot_info` (0x5000, 76 bytes de campos)
+
+**v2 (desde 0.2.0)**: `alfs_ptr` pasa a ser el offset EN BYTES del volumen
+ALFS dentro del medio de arranque (0 = sin volumen) y `alfs_size` su tamaño
+en bytes. El kernel calcula el LBA como `alfs_ptr / sector_size`. stage2
+(BIOS) y el bootloader UEFI escriben ambos la versión 2; los tres binarios
+(kernel incluido) deben ir sincronizados.
 
 `extern struct` en `src/kernel/boot_info.zig` (@sizeOf = 80 con relleno
 final; el relleno nunca se lee). Magia `ALXB`. Campos: modo (BIOS/UEFI/CD),
@@ -156,9 +162,84 @@ por ambos firmwares.
 - **mem.zig**: bump allocator (región usable desde 32 MiB); la Fase 7 lo
   sustituirá por clases de tamaño. `alloc` valida alineación potencia de 2
   y no desborda.
-- **Autopruebas** (`autoprueba.zig`): 8 comprobaciones volcadas por COM1
+- **Autopruebas** (`autoprueba.zig`): 11 comprobaciones volcadas por COM1
   con prefijo `[ OK ]/[FALLA]` y resumen; `tools/probar_boot.py` las
-  exige en CI.
+  exige en CI. Desde v0.2.0 incluyen `ata_identify`, `alfs_montado` y
+  `alfs_operaciones` (ciclo crear/leer/rutas/borrar en RAM, sin tocar disco).
+
+### 5.1 Driver ATA (`src/kernel/ata.zig`)
+
+- Bus primario, disco maestro, **PIO LBA28 con polling** (nIEN activado:
+  sin IRQ14/15; el PIC mantiene al esclavo cerrado).
+- `IDENTIFY DEVICE` valida el disco y extrae la cadena de modelo (palabras
+  27..46 con bytes intercambiados); word 49 bit 9 = soporte LBA28.
+- **Lecturas/escrituras por bloques de hasta 64 sectores, con DRQ esperado
+  ANTES DE CADA SECTOR** (así exige PIO «READ/WRITE SECTORS»); la
+  transferencia de 256 palabras es `rep insw`/`rep outsw`.
+- Todas las esperas acotadas (timeout de ~2 M iteraciones + ioWait):
+  un disco colgado nunca cuelga el sistema; devuelve `Timeout`/`FallaAta`.
+- `FLUSH CACHE` (0xE7) tras cada escritura: persistencia real.
+- Lección importante: **`rep insw` escribe en ES:RDI pero `rep outsw` lee de
+  DS:RSI**. Usar RDI como origen de outsw escribe basura (en QEMU, ceros)
+  sin ningún error. Encontrado comparando el desensamblado; documentado
+  para no repetirlo.
+
+### 5.2 Sistema de archivos ALFS (`src/kernel/alfs*.zig`)
+
+**Capas** (fuente única de verdad del formato):
+
+| Archivo | Contenido | Usado por |
+|---------|-----------|-----------|
+| `alfs_formato.zig` | Constantes, `Superbloque` (512 B), `Entrada` (64 B), mapa de bits, validación de nombres | kernel, mkalfs, pruebas |
+| `alfs_volumen.zig` | `Volumen`: todas las operaciones sobre un búfer (capa pura, sin E/S) | kernel, mkalfs, pruebas host |
+| `alfs.zig` | Montaje por ATA (espejo RAM), `sincronizar()`, estado global | kernel |
+| `tools/mkalfs.zig` | Genera el volumen inicial desde `fsroot/` e inserta la partición 3 | build |
+
+El volumen completo (16 MiB) se carga a un espejo en RAM al arrancar; todas
+las operaciones trabajan sobre el espejo y `sincronizar` reescribe el
+volumen entero al disco (32768 sectores en bloques de 64 + FLUSH). Es
+simple y robusto; la escritura diferencial es mejora futura.
+
+**Formato en disco** (por defecto 32768 bloques de 512 B):
+
+```
+bloque 0    superbloque: magic "ALF1" (0x31534C41), versión, log2=9,
+            n_bloques, bitmap_bloque=1, tabla_bloque, tabla_entradas=256,
+            datos_bloque, bloques_libres, crc (reservado), etiqueta[16]
+bloques 1..8   mapa de bits de bloques (32768 bits)
+bloques 9..40  tabla de 256 entradas de 64 B
+bloques 41..   área de datos (archivos como extensiones CONTIGUAS)
+```
+
+**Entrada de tabla (64 B)**: tipo (0 libre/1 archivo/2 directorio), flags,
+nombre_len, nombre[44], padre (u16, 0xFFFF=raíz), tam (u32),
+primer_bloque (u32), nbloques (u32).
+
+**Decisiones y límites** (documentadas a propósito):
+
+- Archivos por **extensiones contiguas** con primer ajuste: sin
+  fragmentación interna ni punteros; si no hay corrida libre suficiente
+  → `Fragmentado` (borrar archivos libera huecos). Máx. 4 MiB por archivo.
+- Nombres insensibles a mayúsculas ASCII (la ñ y demás Latin-1 comparan
+  byte a byte), sin espacios ni '/', máx. 44 B. Profundidad máx. 16.
+- Tabla de 256 entradas (un directorio no vacío no se borra).
+- `Volumen.abrir()` revalida TODO el superbloque y recounts el mapa de
+  bits: un volumen corrupto se rechaza sin lecturas salvajes.
+- Escritura de archivo: se reserva la extensión nueva ANTES de liberar la
+  vieja (permite crecer in situ); los datos se copian al bloque nuevo.
+
+### 5.3 Intérprete de comandos (`src/kernel/interprete.zig`)
+
+- Tabla `COMANDOS` con nombre ES + alias EN + ayuda + uso; 16 comandos en
+  v0.2.0 (ver manual de usuario).
+- **Toda la salida se refleja por COM1** (consola remota): base de la
+  automatización de pruebas (`probar_alfs.py` teclea con QMP `send-key` y
+  valida por serie; el mapa ES se tiene en cuenta: solo se inyectan
+  caracteres seguros en ambas distribuciones).
+- Editor de línea: imprimibles, retroceso, Ctrl+C. Historial y TAB llegan
+  en la Fase 3.
+- Las rutas aceptan absolutas y relativas, `.` y `..`; el prompt muestra
+  la ruta actual (`antlex:/ejemplos> `).
 
 ## 6. Sistema de compilación
 
@@ -168,9 +249,12 @@ por ambos firmwares.
 |------|-------------|
 | `kernel` | `src/kernel/main.zig` → ELF con `linker.ld` (base 0x100000, `.text.boot` primero) |
 | `stage1`/`stage2` | NASM (`-f bin`, `-D STAGE2_SECTORES=32`; variante `-D CD=1`) |
-| `mkimage` | `zig run tools/mkimage.zig`: parsea el ELF (PT_LOAD), binario plano + cabecera (entry/bss/crc32) + particiones → `zig-out/antlexos.img` |
-| `test` | pruebas unitarias en host (`src/tests.zig`) |
+| `mkimage` | `zig run tools/mkimage.zig`: parsea el ELF (PT_LOAD), binario plano + cabecera (entry/bss/crc32) + particiones → imagen base |
+| `mkalfs` | ejecutable host con el MISMO módulo `alfs_volumen`: genera la partición 3 desde `fsroot/` → `zig-out/antlexos.img` |
+| `test` | pruebas unitarias en host (`src/tests.zig` + pruebas de formato/volumen ALFS) |
 | `probar` | `tools/probar_boot.py` (QEMU + serial + QMP + validación de píxeles) |
+| `probar-uefi` | igual con OVMF (pflash dual) |
+| `probar-alfs` | `tools/probar_alfs.py`: escribe un archivo por teclado QMP, sincroniza, REINICIA la VM y verifica la persistencia |
 | `fuente` | regenera `fuente_datos.zig` desde `assets/unifont.hex` |
 
 Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).
@@ -194,6 +278,11 @@ Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).
 - **Caso real documentado**: page-fault con código de error 0x8 (bits
   reservados) tras activar PG → entradas de página escritas con stride
   incorrecto. El volcado de las tablas por QMP lo destapó al instante.
+- **Casos reales v0.2.0**: (a) PIO multi-sector sin DRQ por sector leía
+  solo el primer sector válido; (b) `rep outsw` con origen en RDI
+  (debe ser RSI) escribió 16 MiB de ceros; (c) el scancode del INTRO
+  (0x1C) faltaba en las tablas y ninguna línea llegaba al intérprete.
+  Los tres los destapó el arnés de persistencia automatizado.
 
 ## 9. Riesgos conocidos y decisiones abiertas
 
@@ -202,3 +291,10 @@ Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).
   un heap > 4 GiB requeriría mapeo propio.
 - A20 solo por puerta rápida (QEMU y hardware moderno la tienen activa).
 - La ISO/El Torito (Fase 6) usará la variante `-D CD=1` ya precompilada.
+- ALFS: `sincronizar` reescribe el volumen COMPLETO (16 MiB): simple pero
+  lento; la escritura diferencial (bitmap sucio por bloques) es mejora
+  futura. Los archivos muy fragmentados pueden pedir reorden (no hay
+  compactador aún).
+- El espejo RAM del volumen (16 MiB) sale del bump allocator: las sesiones
+  con mucha escritura consumen heap hasta `sincronizar` (no lo libera;
+  es aceptable con 512 MiB de RAM de prueba).

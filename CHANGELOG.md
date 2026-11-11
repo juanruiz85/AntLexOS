@@ -1,3 +1,42 @@
+## [v0.2.0] - 2026-11-11
+
+### Fase 2 — Sistema de archivos ALFS, driver ATA y primeros comandos
+
+- **ALFS (AntLex File System) v1**, formato propio: superbloque de 512 B
+  con validación completa, mapa de bits de bloques, tabla de 256 entradas
+  de 64 B (jerárquica, padre por índice) y archivos por **extensiones
+  contiguas** (primer ajuste). Nombres hasta 44 B sin espacios ni '/',
+  insensibles a mayúsculas, profundidad 16, 4 MiB por archivo.
+- **Capa pura y compartida**: `alfs_formato.zig` (formato) y
+  `alfs_volumen.zig` (operaciones sin E/S) las usan el kernel, la
+  herramienta `mkalfs.zig` y las pruebas host — fuente única de verdad.
+- **Driver ATA PIO LBA28** (`ata.zig`): polling con nIEN (sin IRQ14/15),
+  IDENTIFY con modelo del disco, DRQ esperado por sector, timeouts
+  acotados y FLUSH CACHE tras escribir.
+- **Persistencia real**: el volumen se monta como espejo en RAM y
+  `sincronizar` lo escribe entero al disco. Verificado por el arnés
+  automatizado `probar_alfs.py`, que teclea comandos reales por QMP
+  (teclado español), sincroniza, **reinicia la máquina virtual** y
+  comprueba que el archivo sobrevive — en BIOS y en UEFI.
+- **Intérprete de comandos** (`interprete.zig`): 16 comandos en español
+  con alias en inglés (lista/ir/ruta/mostrar/escribir/anexar/nuevodir/
+  borrar/copiar/espacio/sincronizar/ayuda/ver/eco/limpiar/teclado),
+  prompt con ruta actual, Ctrl+C, y **salida espejada por COM1**
+  (consola remota que habilita la automatización).
+- **Protocolo boot_info v2**: `alfs_ptr` (offset en bytes) y `alfs_size`
+  los rellenan ambos bootloaders; el kernel valida rango LBA28 y tamaño.
+- **Volumen inicial desde `fsroot/`**: LEEME, ACERCA-DE, MANUAL-CONSOLA y
+  /ejemplos dentro del propio sistema.
+- **Autopruebas 11/11** (+ata_identify, +alfs_montado, +alfs_operaciones)
+  y **pruebas host 17/17** (+formato, +volumen, +corrupción de disco).
+- **Correcciones**: INTRO/retroceso/tabulador faltaban en las tablas de
+  teclado (0x1C/0x0E/0x0F); el intérprete ya no descarta Latin-1 (ñ,
+  acentos, ¿¡ tecleables).
+- **Auditoría REV-FASE2** (agente revisor): 3 hallazgos críticos
+  reproducidos con volumen corrupto (desbordamientos u32 y bitmap fuera
+  de rango) + 15 más; todo corregido, con prueba de regresión host
+  (ver `docs/revision_seguridad.md`).
+
 ## [v0.1.1] - 2026-11-11
 
 ### Fase 1b — Bootloader UEFI propio

@@ -16,6 +16,11 @@ pub fn build(b: *std.Build) void {
     const mod_layout = b.createModule(.{
         .root_source_file = b.path("layout.zig"),
     });
+    // formato y operaciones ALFS compartidas por kernel, mkalfs y pruebas
+    // (alfs_volumen importa alfs_formato de forma relativa: módulo único)
+    const mod_alfs_volumen = b.createModule(.{
+        .root_source_file = b.path("src/kernel/alfs_volumen.zig"),
+    });
     const layout_opts = b.addOptions();
     layout_opts.addOption(u64, "kernel_off", lay.kernel_off);
     layout_opts.addOption(u64, "kernel_load_addr", lay.kernel_load_addr);
@@ -91,7 +96,7 @@ pub fn build(b: *std.Build) void {
     mki.addFileArg(out_s1);
     mki.addFileArg(out_s2);
     mki.addFileArg(out_fat);
-    const img = mki.addOutputFileArg("antlexos.img");
+    const img_base = mki.addOutputFileArg("antlexos_base.img");
     mki.addArgs(&.{
         b.fmt("{d}", .{lay.kernel_off}),
         b.fmt("{d}", .{lay.fat_off}),
@@ -103,6 +108,24 @@ pub fn build(b: *std.Build) void {
     });
     mki.step.dependOn(&c1.step);
     mki.step.dependOn(&c2.step);
+
+    // ------------------------------------------------------------------
+    // Volumen ALFS inicial desde fsroot/ (misma lógica que el kernel)
+    // ------------------------------------------------------------------
+    const mkalfs = b.addExecutable(.{
+        .name = "mkalfs",
+        .root_source_file = b.path("tools/mkalfs.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    mkalfs.root_module.addImport("alfs_volumen", mod_alfs_volumen);
+    const correr_mkalfs = b.addRunArtifact(mkalfs);
+    correr_mkalfs.addFileArg(img_base);
+    correr_mkalfs.addDirectoryArg(b.path("fsroot"));
+    const img = correr_mkalfs.addOutputFileArg("antlexos.img");
+    correr_mkalfs.addArg(b.fmt("{d}", .{lay.alfs_off}));
+    correr_mkalfs.addArg(b.fmt("{d}", .{lay.alfs_size}));
+    correr_mkalfs.step.dependOn(&mki.step);
 
     const inst_img = b.addInstallFile(img, "antlexos.img");
     b.getInstallStep().dependOn(&inst_img.step);
@@ -140,6 +163,18 @@ pub fn build(b: *std.Build) void {
     probar_uefi.step.dependOn(b.getInstallStep());
     const paso_probar_uefi = b.step("probar-uefi", "Arranca en QEMU+OVMF y valida serial + capturas");
     paso_probar_uefi.dependOn(&probar_uefi.step);
+
+    // ------------------------------------------------------------------
+    // Persistencia de ALFS (escribir → reinicio → verificar → limpiar)
+    // ------------------------------------------------------------------
+    const probar_alfs = b.addSystemCommand(&.{ "python3", "tools/probar_alfs.py" });
+    probar_alfs.addArg(b.pathFromRoot("zig-out/antlexos.img"));
+    probar_alfs.addArg(b.pathFromRoot("build/pruebas_alfs"));
+    probar_alfs.addArg("--tiempo");
+    probar_alfs.addArg("90");
+    probar_alfs.step.dependOn(b.getInstallStep());
+    const paso_probar_alfs = b.step("probar-alfs", "Persistencia ALFS: crea archivo, reinicia y verifica");
+    paso_probar_alfs.dependOn(&probar_alfs.step);
 
     // ------------------------------------------------------------------
     // Regeneración de la fuente bitmap (manual, para reproducibilidad)

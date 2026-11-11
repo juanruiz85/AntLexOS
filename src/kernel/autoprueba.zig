@@ -2,6 +2,7 @@
 //! "[ OK ]" o "[FALLA]" por el puerto serie y las resume al final.
 //! tools/probar_boot.py parsea esta salida para decidir si el arranque pasa.
 
+const std = @import("std");
 const serial = @import("serial.zig");
 const boot_info = @import("boot_info.zig");
 const pantalla = @import("pantalla.zig");
@@ -11,6 +12,9 @@ const mem = @import("mem.zig");
 const pit = @import("pit.zig");
 const x86 = @import("x86.zig");
 const version = @import("version.zig");
+const ata = @import("ata.zig");
+const alfs = @import("alfs.zig");
+const fmt = @import("alfs_formato.zig");
 
 var pasan: u32 = 0;
 var fallan: u32 = 0;
@@ -44,8 +48,8 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
     serial.puts(version.VERSION);
     serial.puts(" ==\n");
 
-    // 1) boot_info
-    comprobar("boot_info", bi.magic == 0x42584C41 and bi.version == 1, "magic ALXB v1");
+    // 1) boot_info (protocolo v2)
+    comprobar("boot_info", bi.magic == 0x42584C41 and bi.version == 2, "magic ALXB v2");
 
     // 2) framebuffer
     comprobar(
@@ -85,9 +89,54 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
     comprobar("mem_alloc", p1 != null and p2 != null and alineado, "asignador secuencial");
 
     // 8) temporizador (necesita interrupciones)
-    const t0 = pit.tics;
+    const t0 = pit.leerTics();
     pit.esperaTics(3);
-    comprobar("pit_tics", pit.tics >= t0 + 3, "3 tics a 100 Hz");
+    comprobar("pit_tics", pit.leerTics() >= t0 + 3, "3 tics a 100 Hz");
+
+    // 9) disco ATA
+    comprobar("ata_identify", ata.estaDisponible() and ata.modelo().len > 0, "disco identificado");
+
+    // 10) ALFS montado
+    comprobar("alfs_montado", alfs.montado() and alfs.actual() != null, "volumen validado en RAM");
+
+    // 11) operaciones ALFS (en RAM; el disco no se toca)
+    if (alfs.actual()) |v| {
+        var ok_ops = true;
+        // crear archivo en la raíz (un fallo se registra y salta al resumen:
+        // el arnés debe ver el marcador final siempre)
+        crear: {
+            const idx = v.crear(fmt.RAIZ, "autopru.txt", fmt.TIPO_ARCHIVO, "prueba interna") catch |e| {
+                comprobar("alfs_operaciones", false, @errorName(e));
+                break :crear;
+            };
+            // leer y comparar
+            var buf: [32]u8 = undefined;
+            const n = v.leer(idx, &buf) catch 0;
+            if (n != 14 or !std.mem.eql(u8, buf[0..n], "prueba interna")) ok_ops = false;
+            // crear directorio + archivo dentro + resolver con ..
+            const d = v.crear(fmt.RAIZ, "autopdir", fmt.TIPO_DIRECTORIO, "") catch 0;
+            if (d != 0) {
+                _ = v.crear(d, "hijo.txt", fmt.TIPO_ARCHIVO, "x") catch {
+                    ok_ops = false;
+                };
+                const r = v.resolverDesde(d, "../autopru.txt") catch 0;
+                if (r != idx) ok_ops = false;
+                _ = v.borrar(v.resolverDesde(d, "hijo.txt") catch 0) catch {
+                    ok_ops = false;
+                };
+                v.borrar(d) catch {
+                    ok_ops = false;
+                };
+            } else ok_ops = false;
+            // borrar el archivo de prueba (deja el volumen como estaba)
+            v.borrar(idx) catch {
+                ok_ops = false;
+            };
+            comprobar("alfs_operaciones", ok_ops, "crear/leer/rutas/borrar en RAM");
+        }
+    } else {
+        comprobar("alfs_operaciones", false, "ALFS no montado");
+    }
 
     // resumen
     serial.puts("AUTOPRUEBAS ");

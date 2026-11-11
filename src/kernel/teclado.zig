@@ -21,7 +21,9 @@ const M_DIERE: u8 = 0x92;
 
 pub const Muerta = enum { ninguna, agudo, grave, diere };
 
-var dist_actual: []const u8 = "es";
+// distribución activa como indicador atómico (la escribe el hilo principal
+// y la lee la IRQ1: sin lecturas rasgadas)
+var dist_es: bool = true;
 var muerta: Muerta = .ninguna;
 var mayus: bool = false;
 var shift: bool = false;
@@ -65,6 +67,12 @@ fn tablaES() Tabla {
     mayusculas(&t, 0x10, q);
     mayusculas(&t, 0x1E, a);
     mayusculas(&t, 0x2C, z);
+    t[0x1C] = '\n'; // INTRO
+    t[0x1C + 128] = '\n';
+    t[0x0E] = 8; // retroceso
+    t[0x0E + 128] = 8;
+    t[0x0F] = '\t'; // tabulador
+    t[0x0F + 128] = '\t';
     // teclas específicas ES
     t[0x1A] = M_GRAVE; // ` muerto
     t[0x1A + 128] = '^';
@@ -117,6 +125,12 @@ fn tablaUS() Tabla {
     mayusculas(&t, 0x10, q);
     mayusculas(&t, 0x1E, a);
     mayusculas(&t, 0x2C, z);
+    t[0x1C] = '\n'; // INTRO
+    t[0x1C + 128] = '\n';
+    t[0x0E] = 8; // retroceso
+    t[0x0E + 128] = 8;
+    t[0x0F] = '\t'; // tabulador
+    t[0x0F + 128] = '\t';
     t[0x33] = ',';
     t[0x33 + 128] = '<';
     t[0x34] = '.';
@@ -140,17 +154,17 @@ pub fn init() void {
 /// Cambia la distribución ("es" o "us"). Devuelve false si es desconocida.
 pub fn fijarDistribucion(nombre: []const u8) bool {
     if (std.mem.eql(u8, nombre, "es")) {
-        dist_actual = "es";
+        @atomicStore(bool, &dist_es, true, .release);
         return true;
     } else if (std.mem.eql(u8, nombre, "us")) {
-        dist_actual = "us";
+        @atomicStore(bool, &dist_es, false, .release);
         return true;
     }
     return false;
 }
 
 pub fn distribucion() []const u8 {
-    return dist_actual;
+    return if (@atomicLoad(bool, &dist_es, .acquire)) "es" else "us";
 }
 
 pub fn totalDesbordamientos() u32 {
@@ -224,6 +238,7 @@ pub fn irq() void {
             0x53 => empujar(SUPRIMIR),
             0x47 => empujar(INICIO),
             0x4F => empujar(FIN),
+            0x1C => empujar('\n'), // INTRO del teclado numérico
             else => {},
         }
         return;
@@ -252,7 +267,7 @@ pub fn irq() void {
     }
     if (soltar or code >= 128) return;
 
-    const tabla: *const Tabla = if (std.mem.eql(u8, dist_actual, "us")) &TABLA_US else &TABLA_ES;
+    const tabla: *const Tabla = if (!@atomicLoad(bool, &dist_es, .acquire)) &TABLA_US else &TABLA_ES;
     var c = tabla[code];
 
     // mayúsculas de bloqueo solo afectan a letras

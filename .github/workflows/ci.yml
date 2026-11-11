@@ -47,6 +47,13 @@ jobs:
           OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
         run: python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas_uefi --uefi --tiempo 150
 
+      - name: Prueba de persistencia ALFS (escribir → reinicio → verificar)
+        env:
+          TC: /noexiste
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        run: python3 tools/probar_alfs.py zig-out/antlexos.img build/pruebas_alfs --tiempo 120
+
       - name: Auditoría de seguridad y calidad
         run: python3 tools/auditar.py
 
@@ -61,4 +68,5 @@ jobs:
             build/pruebas/serial.log
             build/pruebas_uefi/*.png
             build/pruebas_uefi/serial.log
+            build/pruebas_alfs/serial_alfs.log
           if-no-files-found: error

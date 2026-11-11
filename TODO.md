@@ -13,14 +13,18 @@ auditoría en `docs/revision_seguridad.md`.
 - [x] Prueba de arranque UEFI en QEMU con OVMF (local y CI)
 
 ## Fase 2 (v0.2.0) — Sistema de archivos ALFS
-- [ ] `src/kernel/ata.zig`: driver ATA PIO (LBA28, polling)
-- [ ] `src/kernel/alfs.zig`: montaje, creación/lectura/escritura/borrado,
-      directorios jerárquicos, extensión de archivos
-- [ ] `tools/mkalfs.zig`: genera el volumen inicial desde `fsroot/`
-- [ ] Comandos: lista/ir/ruta/mostrar/escribir/anexar/nuevodir/borrar/
-      copiar/espacio/sincronizar
-- [ ] Persistencia real: cambios visibles tras reiniciar QEMU
-- [ ] Autopruebas de ALFS en el arranque + pruebas host del formato
+- [x] `src/kernel/ata.zig`: driver ATA PIO (LBA28, polling, DRQ por sector)
+- [x] `src/kernel/alfs*.zig`: montaje, creación/lectura/escritura/borrado,
+      directorios jerárquicos, extensión de archivos (capa de volumen pura
+      compartida con mkalfs y pruebas host)
+- [x] `tools/mkalfs.zig`: genera el volumen inicial desde `fsroot/`
+- [x] Comandos: lista/ir/ruta/mostrar/escribir/anexar/nuevodir/borrar/
+      copiar/espacio/sincronizar (+ ayuda/ver/eco/limpiar/teclado)
+- [x] Persistencia real: cambios visibles tras reiniciar QEMU
+      (`tools/probar_alfs.py` en BIOS y UEFI)
+- [x] Autopruebas de ALFS en el arranque (11/11) + pruebas host del formato
+      y del volumen (9 pruebas nuevas)
+- [x] Protocolo boot_info v2 (alfs_ptr/alfs_size) en BIOS y UEFI
 
 ## Fase 3 (v0.3.0) — Intérprete de comandos
 - [ ] `src/kernel/interprete.zig` con ~24 comandos en español + alias

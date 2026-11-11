@@ -18,6 +18,9 @@ const mem = @import("mem.zig");
 const autoprueba = @import("autoprueba.zig");
 const version = @import("version.zig");
 const x86 = @import("x86.zig");
+const ata = @import("ata.zig");
+const alfs = @import("alfs.zig");
+const interprete = @import("interprete.zig");
 
 // pila propia del kernel: 64 KiB en .bss
 var pila: [64 * 1024]u8 align(16) linksection(".bss") = undefined;
@@ -101,6 +104,33 @@ export fn kmain(boot_ptr: usize) noreturn {
     // pantalla de bienvenida
     splash();
 
+    // ---------------- ATA + ALFS (Fase 2) ----------------
+    serial.puts("init: ata\n");
+    if (ata.init()) |_| {
+        serial.puts("ata: disco ");
+        serial.puts(ata.modelo());
+        serial.puts("\n");
+    } else |err_ata| {
+        serial.puts("ata: no disponible (");
+        serial.puts(@errorName(err_ata));
+        serial.puts(") — ALFS quedara desmontado\n");
+    }
+
+    serial.puts("init: alfs\n");
+    if (alfs.montar(bi)) |info| {
+        serial.puts("ALFS MONTADO v");
+        serial.putDec(info.libres);
+        serial.puts(" bloques libres, ");
+        serial.putDec(info.archivos);
+        serial.puts(" archivos, ");
+        serial.putDec(info.directorios);
+        serial.puts(" directorios\n");
+    } else |err_alfs| {
+        serial.puts("ALFS NO MONTADO (");
+        serial.puts(@errorName(err_alfs));
+        serial.puts(")\n");
+    }
+
     // batería de autopruebas (serial + resumen); el splash sigue en pantalla
     autoprueba.ejecutar(bi);
 
@@ -109,54 +139,17 @@ export fn kmain(boot_ptr: usize) noreturn {
     serial.puts("SPLASH VISIBLE\n");
     pit.esperaTics(100);
 
-    // consola interactiva básica (el intérprete completo llega en la Fase 3)
+    // ---------------- intérprete de comandos (consola) ----------------
+    serial.puts("init: interprete\n");
     consola.fijarEstilo(.{ .tinta = consola.COLOR_TEXTO, .fondo = pantalla.rgb(0x0A, 0x0E, 0x16) });
     consola.limpiar();
     consola.puts("AntLex OS v");
     consola.puts(version.VERSION);
     consola.puts(" — consola grafica\n");
-    consola.puts("Escribe algo y pulsa INTRO (el interprete llega en la Fase 3):\n\n");
-    consola.puts("antlex> ");
-    serial.puts("CONSOLA LISTA\n");
+    consola.puts("Escribe 'ayuda' para ver los comandos.\n\n");
 
-    var linea: [120]u8 = undefined;
-    var len: usize = 0;
-
-    while (true) {
-        x86.hlt();
-        while (teclado.poll()) |c| {
-            switch (c) {
-                '\n', '\r' => {
-                    consola.putc('\n');
-                    if (len > 0) {
-                        consola.fijarEstilo(.{ .tinta = consola.COLOR_TITULO, .fondo = pantalla.rgb(0x0A, 0x0E, 0x16) });
-                        consola.puts("RECIBIDO: \"");
-                        consola.puts(linea[0..len]);
-                        consola.puts("\" (");
-                        consola.putDec(len);
-                        consola.puts(" bytes)\n");
-                        consola.fijarEstilo(.{ .tinta = consola.COLOR_TEXTO, .fondo = pantalla.rgb(0x0A, 0x0E, 0x16) });
-                        len = 0;
-                    }
-                    consola.puts("antlex> ");
-                },
-                8 => {
-                    if (len > 0) {
-                        len -= 1;
-                        consola.putc(8);
-                    }
-                },
-                0x80...0xFF => {}, // teclas especiales: sin efecto en esta fase
-                else => {
-                    if (len < linea.len and c >= 32 and c != 127) {
-                        linea[len] = c;
-                        len += 1;
-                        consola.putc(c);
-                    }
-                },
-            }
-        }
-    }
+    interprete.init(bi);
+    interprete.bucle();
 }
 
 /// Pantalla de bienvenida gráfica (logo + versión).

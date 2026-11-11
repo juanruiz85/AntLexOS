@@ -1,6 +1,6 @@
 //! AntLex OS — pruebas unitarias que corren en el host (zig build test).
 //! Cubren las partes puras del kernel: tablas de teclado, boot_info,
-//! fuente bitmap y asignador de memoria.
+//! fuente bitmap, asignador de memoria y sistema de archivos ALFS.
 
 const std = @import("std");
 const teclado = @import("kernel/teclado.zig");
@@ -8,6 +8,14 @@ const bi = @import("kernel/boot_info.zig");
 const fuente = @import("kernel/fuente.zig");
 const datos = @import("kernel/fuente_datos.zig");
 const mem = @import("kernel/mem.zig");
+const alfs_formato = @import("kernel/alfs_formato.zig");
+const alfs_volumen = @import("kernel/alfs_volumen.zig");
+
+test "alfs: ejecuta las pruebas del formato y del volumen" {
+    // referenciar los módulos obliga a compilar sus bloques test
+    _ = alfs_formato;
+    _ = alfs_volumen;
+}
 
 test "boot_info mide 80 bytes (76 campos + relleno)" {
     try std.testing.expectEqual(@as(usize, 80), @sizeOf(bi.BootInfo));

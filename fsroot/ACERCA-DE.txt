@@ -1,0 +1,29 @@
+ACERCA DE ANTLEX OS
+===================
+
+AntLex OS es un sistema operativo experimental creado desde cero en el
+lenguaje Zig (Zig Software Foundation) para la arquitectura x86_64.
+
+Caracteristicas principales:
+
+  * Bootloader propio para BIOS (MBR + stage2 en ensamblador) y para UEFI
+    (BOOTX64.EFI en Zig). Nada de GRUB ni Limine.
+  * Modo grafico desde el arranque (VBE 1024x768 en BIOS, GOP en UEFI).
+  * Sistema de archivos propio: ALFS (AntLex File System), con persistencia
+    real en el disco.
+  * Interprete de comandos en espanol con alias en ingles.
+  * LEX: asistente de inteligencia artificial embebida, sin conexion, que
+    solo conoce el propio sistema (llega en la Fase 4).
+  * Escritorio grafico con terminal y chat de LEX (Fase 5).
+
+Fases del proyecto:
+  Fase 1 (v0.1.0)  bootloader BIOS + consola grafica
+  Fase 1b (v0.1.1) bootloader UEFI
+  Fase 2 (v0.2.0)  sistema de archivos ALFS + driver ATA
+  Fase 3           interprete completo
+  Fase 4           IA embebida LEX
+  Fase 5           escritorio con ventanas
+  Fase 6-7         ISO, portables y release 1.0
+
+Proyecto: https://github.com/juanruiz85/AntLexOS
+Licencia: GPL-3.0

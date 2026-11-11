@@ -61,7 +61,7 @@ pub fn main() void {
         while (true) asm volatile ("hlt");
     };
 
-    printf("AntLex EFI bootloader v0.1.1", .{});
+    printf("AntLex EFI bootloader", .{});
 
     // ------------------------------------------------------------------
     // 1) localizar un medio AntLex por BlockIo
@@ -114,6 +114,15 @@ pub fn main() void {
     }
     if (cabecera.kernel_size == 0 or cabecera.kernel_size > KERNEL_MAX) {
         printf("tamano del kernel fuera de rango: {d}", .{cabecera.kernel_size});
+        while (true) asm volatile ("hlt");
+    }
+    // cabecera endurecida (REV-FASE2): entrada y .bss dentro del binario
+    if (cabecera.entry_off >= cabecera.kernel_size) {
+        printf("entry_off fuera del kernel: {d}", .{cabecera.entry_off});
+        while (true) asm volatile ("hlt");
+    }
+    if (cabecera.bss_off > KERNEL_MAX or cabecera.bss_size > KERNEL_MAX - cabecera.bss_off) {
+        printf("rango .bss fuera del kernel: +{d} x{d}", .{ cabecera.bss_off, cabecera.bss_size });
         while (true) asm volatile ("hlt");
     }
     printf("kernel: {d} B, entrada +{d}", .{ cabecera.kernel_size, cabecera.entry_off });
@@ -243,7 +252,7 @@ pub fn main() void {
     const bi: *volatile boot_info.BootInfo = @ptrCast(pag_bi);
     bi.* = .{
         .magic = BOOT_MAGIC,
-        .version = 1,
+        .version = 2, // v2: incluye la posición del volumen ALFS
         .flags = boot_info.MODO_UEFI | (if (tamanio_sector == 2048) boot_info.MODO_CD else 0),
         .reserved = if (fb_bgr) 0 else 1, // bit0: framebuffer con orden RGB (no BGR)
         .fb_addr = g.mode.frame_buffer_base,
@@ -254,8 +263,8 @@ pub fn main() void {
         .memmap_ptr = @intFromPtr(destino_mapa),
         .memmap_count = n_entradas,
         .pad = 0,
-        .alfs_ptr = 0, // sin precarga: el kernel montará ALFS (Fase 2)
-        .alfs_size = 0,
+        .alfs_ptr = layout.alfs_off, // offset del volumen ALFS en el medio (bytes)
+        .alfs_size = @intCast(layout.alfs_size),
         .sector_size = @intCast(tamanio_sector),
         .boot_drive = 0xFFFFFFFF,
     };

@@ -1,0 +1,21 @@
+DATOS DEL PROYECTO ANTLEX OS
+=============================
+
+Tabla de referencia rapida (formato fijo, para probar 'mostrar'):
+
+  Version        0.2.0
+  Arquitectura   x86_64
+  Lenguaje       Zig 0.14.1
+  FileSystem     ALFS v1 (512 B/bloque, 256 entradas)
+  IA embebida    LEX (Fase 4)
+  GUI            escritorio dividido (Fase 5)
+  Licencia       GPL-3.0
+
+Bloques del volumen (por defecto):
+  1 bloque       superbloque
+  8 bloques      mapa de bits
+  32 bloques     tabla de entradas
+  resto          datos
+
+Este archivo es texto plano UTF-8 sin acentos para conservar la
+compatibilidad con la tabla de glifos actual.

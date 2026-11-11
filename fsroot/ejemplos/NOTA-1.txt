@@ -1,0 +1,20 @@
+NOTA 1 — ARCHIVOS DE EJEMPLO
+============================
+
+Esta carpeta contiene archivos de ejemplo para probar el sistema de
+archivos ALFS.
+
+Cosas que puedes probar:
+
+  mostrar DATOS.TXT        ver una tabla de datos
+  escribir minota.txt esta es mi primera nota en antlex
+  anexar minota.txt y le anado una linea
+  mostrar minota.txt
+  copiar minota.txt copia.txt
+  lista
+  borrar minota.txt
+  sincronizar              guarda los cambios en el disco
+
+Los archivos creados por ti se guardan en el disco cuando sincronizas.
+Si reinicias AntLex OS (por ejemplo reiniciando QEMU) y sincronizaste,
+tus archivos seguiran aqui.

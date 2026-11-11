@@ -82,6 +82,9 @@ stage2:
         ; una cabecera corrupta no debe desbordar la zona de carga
         cmp dword [HDR_ADDR+20], 512*1024
         ja err_kernel
+        ; y un tamaño cero también es una cabecera corrupta
+        cmp dword [HDR_ADDR+20], 0
+        je err_kernel
 
 ; ------------------------------ 2) kernel -----------------------------------
         mov eax, [HDR_ADDR+20]             ; kernel_size (bytes)
@@ -353,7 +356,7 @@ lm_entry:
         mov rdi, BINFO
         mov eax, 0x42584C41                 ; "ALXB"
         stosd
-        mov eax, 1                          ; versión de boot_info
+        mov eax, 2                          ; versión de boot_info (v2: ALFS)
         stosd
         mov eax, [modo_medio]               ; bit0=UEFI(0), bit1=CD
         stosd
@@ -375,10 +378,10 @@ lm_entry:
         stosd
         xor eax, eax
         stosd                               ; pad
-        xor eax, eax
-        stosq                               ; alfs_ptr = 0 (BIOS: el kernel monta por ATA)
-        xor eax, eax
-        stosd                               ; alfs_size = 0
+        mov eax, 13*1024*1024               ; alfs_ptr = offset ALFS en bytes (v2)
+        stosq
+        mov eax, 16*1024*1024               ; alfs_size en bytes
+        stosd
         mov eax, SECT_SIZE
         stosd                               ; sector_size del medio
         movzx eax, byte [bi_drive]

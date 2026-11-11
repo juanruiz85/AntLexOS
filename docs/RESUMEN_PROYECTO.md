@@ -18,18 +18,40 @@ teclado **ES conmutable**; GUI **escritorio dividido terminal|LEX + extras
 (explorador, editor)**; comandos **en español con alias en inglés**;
 licencia **GPL-3.0**; **un tag+release por fase** (v0.1.0 → v1.0.0).
 
-## Estado actual (v0.1.0, Fase 1 terminada)
+## Estado actual (v0.2.0, Fase 2 terminada)
 
-✅ Bootloader BIOS completo (MBR → stage2 → modo largo) con VBE
-1024×768×32 desde el arranque. ✅ Kernel Zig: GDT/IDT/PIC/PIT/teclado
-ES-Us/framebuffer/consola/splash/autopruebas 8/8. ✅ Build reproducible
-(zig + nasm; mkimage/genfont/probar_boot/auditar/release). ✅ CI + release
-automático por tag. ✅ Auditoría REV-FASE1 corregida al completo.
-✅ Documentación completa de la fase. ✅ **Fase 1b (v0.1.1): bootloader
-UEFI propio** (BOOTX64.EFI + FAT16 con mkfat) arrancando en OVMF con el
-mismo kernel e imagen.
+✅ Fase 1 (v0.1.0): bootloader BIOS completo + kernel con consola gráfica.
+✅ Fase 1b (v0.1.1): bootloader UEFI propio (BOOTX64.EFI + FAT16 con mkfat).
+✅ Fase 2 (v0.2.0): **sistema de archivos ALFS** (formato propio, extensiones
+contiguas, tabla de 256 entradas) con **persistencia real** (driver ATA PIO,
+sincronizar escribe el volumen y sobrevive a reinicios — verificado por
+arnés automático en BIOS y UEFI), intérprete con 16 comandos ES+alias EN
+(salida espejada por serie = consola remota), protocolo boot_info v2,
+autopruebas 11/11, pruebas host 17/17 (incluye corrupción de disco) y
+auditoría REV-FASE2 corregida al completo.
 
-Siguiente: **Fase 2 (v0.2.0) ALFS + ATA** (ver `TODO.md`).
+Siguiente: **Fase 3 (v0.3.0) intérprete completo** (ver `TODO.md`).
+
+Lecciones Fase 2 para quien continúe (además de las de Fase 1):
+1. PIO «READ/WRITE SECTORS» pide DRQ por CADA sector: nunca hagas `rep
+   insw/outsw` de más de 256 palabras seguidas.
+2. **`rep outsw` lee de RSI, `rep insw` escribe en RDI** (semejanza con
+   movs). Confundirlos escribe ceros sin error alguno — verificado a costa
+   de un volumen borrado.
+3. El asm inline de Zig 0.14 no acepta `"={D}"` como salida con la misma
+   entrada: usa entradas de registro fijo + clobbers (patrón en ata.zig,
+   probado con script aparte antes de integrarlo).
+4. El scancode del INTRO (0x1C) debe estar EN LA TABLA del teclado: el eco
+   de caracteres funcionaba pero ninguna línea llegaba al intérprete. Los
+   arneses de teclado por QMP (`send-key`, qcode `ret`) destapan esto en
+   segundos.
+5. El cliente QMP debe leer por LÍNEAS y descartar eventos: las respuestas
+   se acumulan con los eventos RESET.
+6. Los búferes que reciben estructuras del disco (superbloque) deben estar
+   alineados: `readFileAlloc` no lo garantiza (usar page_allocator o
+   allocCero con alineación).
+7. Toda aritmética sobre campos de disco va en u64: un `nbloques*512` en
+   u32 es un pánico servido (H-1..H-3 de REV-FASE2, reproducidos).
 
 Lecciones UEFI para quien continúe:
 1. OVMF_4M viene PARTIDO (CODE 3.5M + VARS 0.5M): se monta como DOS
@@ -52,18 +74,25 @@ linker.ld             kernel en 0x100000, .text.boot primero
 src/boot/stage1.asm   MBR 512 B (marca "ANTLEX" en offset 3)
 src/boot/stage2.asm   cargador completo; -D CD=1 = variante ISO (El Torito)
 src/kernel/main.zig   kentry/kmain: orden de inicialización y consola
-src/kernel/boot_info.zig  protocolo de 76 bytes (BIOS y UEFI lo rellenan)
+src/kernel/boot_info.zig  protocolo v2 de 76 bytes (BIOS y UEFI lo rellenan)
 src/kernel/idt.zig    stubs comptime + Marco; selector 0x18; eoi()
-src/kernel/teclado.zig  tablas ES/US 256 entradas, teclas muertas, atómicos
+src/kernel/teclado.zig  tablas ES/US 256 entradas, teclas muertas, INTRO/TAB, atómicos
 src/kernel/{pantalla,fuente,consola}.zig  framebuffer 32bpp + fuente 8×16 unifont
+src/kernel/ata.zig      driver ATA PIO LBA28 (DRQ por sector, timeouts)
+src/kernel/alfs_formato.zig  formato ALFS en disco (superbloque/entradas/bitmap)
+src/kernel/alfs_volumen.zig  operaciones de Volumen (capa pura, sin E/S)
+src/kernel/alfs.zig     montaje por ATA + sincronizar (espejo RAM)
+src/kernel/interprete.zig  16 comandos ES+alias, salida espejada por serie
 src/kernel/{gdt,pic,pit,mem,serial,x86,version,autoprueba}.zig
 tools/mkimage.zig     ELF→img (cabecera ALKR con crc32, particiones)
+tools/mkalfs.zig      volumen ALFS inicial desde fsroot/ (mismo módulo Volumen)
 tools/genfont.zig     unifont.hex → fuente_datos.zig (subconjunto commiteado)
 tools/probar_boot.py  QEMU headless: serial + QMP screendump + validación píxeles
+tools/probar_alfs.py  persistencia: teclado QMP → sync → REINICIO → verificar
 tools/auditar.py      secretos/TODO/versión (CI lo exige)
 tools/release.sh      CLI: ./tools/release.sh 0.2.0 "resumen" → tag → CI publica
 tools/inspeccionar.py volcado de memoria física vía QMP (depuración)
-fsroot/               contenido inicial del futuro volumen ALFS
+fsroot/               contenido inicial del volumen ALFS (manuales dentro)
 ```
 
 ## Cómo trabajar aquí
@@ -71,8 +100,10 @@ fsroot/               contenido inicial del futuro volumen ALFS
 ```bash
 # entorno del sandbox (si aplica): source /home/z/my-project/scripts/entorno.sh
 zig build -Drelease=true      # imagen en zig-out/antlexos.img
-zig build test                # unitarias host
-zig build probar              # arranque verificado en QEMU
+zig build test                # unitarias host (17)
+zig build probar              # arranque verificado en QEMU (BIOS)
+zig build probar-uefi         # arranque verificado con OVMF
+zig build probar-alfs         # persistencia real: escribe, REINICIA y verifica
 python3 tools/auditar.py
 ./tools/release.sh X.Y.Z "resumen de fase"   # publica (solo árbol limpio)
 ```
@@ -102,13 +133,16 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
 ## Protocolos que debes respetar al continuar
 
 - **boot_info** (76 B en 0x5000): ver `src/kernel/boot_info.zig` y el
-  manual técnico §3. Cualquier campo nuevo ⇒ versión del protocolo +1 y
-  compatibilidad en los DOS bootloaders.
+  manual técnico §3. **v2**: cualquier campo nuevo ⇒ versión +1 y
+  compatibilidad en los DOS bootloaders (alfs_ptr/alfs_size ya están en v2).
 - **Cabecera de kernel** ("ALKR"): ver manual técnico §2.1.
 - **Trazas serie**: `init: <paso>` en el arranque; `SPLASH VISIBLE` /
   `CONSOLA LISTA` los usa `probar_boot.py` (no los borres sin actualizar
   el arnés); `[ OK ]/[FALLA] <nombre>` para autopruebas; `ANTLEX BOOT OK
-  v<version>` marca el éxito.
+  v<version>` marca el éxito; `ALFS MONTADO ...`/`ALFS SINCRONIZADO` los usa
+  `probar_alfs.py`. **El intérprete refleja toda su salida por COM1**
+  (consola remota): no lo rompas, la automatización de teclado depende de
+  eso.
 - **Versionado**: `VERSION` + `src/kernel/version.zig` sincronizados
   (auditar.py lo exige); CHANGELOG con sección por tag; PRUEBAS.md con una
   fila por ejecución (versionada); revisión de seguridad por fase.

@@ -7,14 +7,20 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 ## Metodología
 
 - **Unitarias (host)**: `zig build test` — tablas de teclado, boot_info,
-  fuente bitmap, asignador. Corren en el propio host de compilación.
+  fuente bitmap, asignador, formato ALFS y operaciones de Volumen (16
+  pruebas). Corren en el propio host de compilación.
 - **Arranque (QEMU)**: `tools/probar_boot.py` lanza la imagen con
   `qemu-system-x86_64 -display none -serial file:... -qmp unix:...`:
   1. espera por serie la marca `ANTLEX BOOT OK v<versión>` (o `... CON ERRORES`),
-  2. exige **0 autopruebas con `[FALLA]`** de las 8 del kernel,
+  2. exige **0 autopruebas con `[FALLA]`** de las 11 del kernel,
   3. toma captura del splash vía QMP (valida >200 píxeles del color de acento del logo),
   4. toma captura de la consola (valida >200 píxeles de texto),
   5. guarda `serial.log`, `splash.png` y `captura.png`.
+- **Persistencia (QEMU + teclado)**: `tools/probar_alfs.py` (desde v0.2.0)
+  teclea comandos reales por QMP `send-key` (mapa ES tenido en cuenta),
+  sincroniza, REINICIA la máquina (`system_reset`), vuelve a arrancar y
+  verifica que el archivo creado sigue en el volumen; luego limpia.
+  Existe la variante `--uefi` (arranque por OVMF).
 - **Auditoría**: `tools/auditar.py` (secretos, marcadores TODO en src/,
   sincronía de versión) + revisión de código por agente registrada en
   `docs/revision_seguridad.md`.
@@ -49,6 +55,20 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0021 | 2026-11-11 | 0.1.1 | Regresión BIOS tras cambios UEFI | ✅ | v0.1.1 sigue arrancando por BIOS (mismo kernel, dos rutas) |
 | P-0022 | 2026-11-11 | 0.1.0 | CI GitHub (v0.1.0) | ⚠️ | Build+tests+arranque BIOS PASARON en runner; auditoría falló por falsos positivos del toolchain zig dentro del workspace — corregido en v0.1.1 (extracción a $RUNNER_TEMP) |
 | P-0023 | 2026-11-11 | 0.1.0 | Release v0.1.0 en GitHub | ✅ | Workflow publicó img + src.tar.gz + SHA256SUMS + NOTAS.md automáticamente |
+
+| P-0024 | 2026-11-11 | 0.2.0-dev | Unitarias host con ALFS (`zig build test`) | ❌ | Campo de struct tras declaraciones + superbloque mal dimensionado + doble '/' en rutaAbsoluta — corregidos (3 ciclos) |
+| P-0025 | 2026-11-11 | 0.2.0-dev | Unitarias host con ALFS | ✅ | 16/16: tablas, boot_info, fuente, teclas muertas, regionHeap, formato ALFS (4) y Volumen (5) |
+| P-0026 | 2026-11-11 | 0.2.0-dev | Montaje ALFS en arranque BIOS | ❌ | VolumenInvalido: PIO multi-sector leía solo el 1.er sector (DRQ es POR sector en READ/WRITE SECTORS) — corregido esperando DRQ antes de cada sector |
+| P-0027 | 2026-11-11 | 0.2.0-dev | Autoprueba alfs_operaciones | ❌ | Conteo del texto de prueba (14 ≠ 15 bytes) — corregido |
+| P-0028 | 2026-11-11 | 0.2.0-dev | Arranque BIOS 11/11 autopruebas | ✅ | Incluye boot_info v2, ata_identify, alfs_montado, alfs_operaciones |
+| P-0029 | 2026-11-11 | 0.2.0-dev | Persistencia ALFS (teclado QMP) | ❌ | El INTRO no llegaba: scancode 0x1C sin mapear en las tablas ES/US (bug real heredado de v0.1.x, invisible a prueba manual de eco simple) — corregido + retroceso/tabulador/INTRO numérico |
+| P-0030 | 2026-11-11 | 0.2.0-dev | Persistencia ALFS (teclado QMP) | ❌ | Cliente QMP se colgaba con eventos acumulados — reescrito con búfer por líneas y descarte de eventos |
+| P-0031 | 2026-11-11 | 0.2.0-dev | Persistencia ALFS (teclado QMP) | ❌ | Sync dejaba el volumen a CEROS: `rep outsw` leía de RSI pero el asm lo ponía en RDI (insw SÍ usa RDI como destino) — hallado desensamblando el kernel; corregido |
+| P-0032 | 2026-11-11 | 0.2.0 | **Persistencia ALFS completa en BIOS** (`probar-alfs`) | ✅ | escribir prueba.txt → sincronizar → REINICIO de la VM → mostrar verifica el contenido → limpieza. Archivo sobrevive al reinicio real |
+| P-0033 | 2026-11-11 | 0.2.0 | **Persistencia ALFS completa en UEFI** | ✅ | Mismo ciclo arrancando por OVMF: el kernel monta/escribe ALFS por ATA igual en ambos modos |
+| P-0034 | 2026-11-11 | 0.2.0 | Regresión arranque BIOS + UEFI | ✅ | 11/11 autopruebas en ambos modos; splash y consola validados por píxeles |
+| P-0035 | 2026-11-11 | 0.2.0 | Auditoría `auditar.py` + revisión de seguridad REV-FASE2 | ❌→✅ | Agente revisor: veredicto NO APTO con 3 hallazgos críticos reproducidos (pánico del kernel con volumen corrupto); corregidos H-1..H-18 (ver docs/revision_seguridad.md) |
+| P-0036 | 2026-11-11 | 0.2.0 | **Suite completa tras correcciones REV-FASE2** | ✅ | Host 17/17 (incluye prueba nueva de entradas corruptas), BIOS 11/11 + capturas, UEFI 11/11, persistencia BIOS y UEFI PASA |
 
 ## Notas
 
