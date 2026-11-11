@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  construir-probar:
+    name: Compilar, probar y auditar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias (nasm, qemu, ovmf)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nasm qemu-system-x86 ovmf python3-pil
+
+      - name: Zig 0.14.1 (versión fijada)
+        run: |
+          curl -sL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ
+          echo "$PWD/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
+
+      - name: Formato (zig fmt --check)
+        run: zig fmt --check .
+
+      - name: Compilar (kernel + bootloader + imagen)
+        run: zig build -Drelease=true
+
+      - name: Pruebas unitarias en host
+        run: zig build test
+
+      - name: Prueba de arranque BIOS en QEMU (serial + capturas)
+        env:
+          TC: /noexiste
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        run: python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas --tiempo 60
+
+      - name: Auditoría de seguridad y calidad
+        run: python3 tools/auditar.py
+
+      - name: Subir artefactos
+        uses: actions/upload-artifact@v4
+        with:
+          name: antlexos-${{ github.sha }}
+          path: |
+            zig-out/antlexos.img
+            build/pruebas/*.png
+            build/pruebas/serial.log
+          if-no-files-found: error

@@ -1,0 +1,15 @@
+.{
+    .fingerprint = 0x13e8f458c6cee970,
+    .name = .antlexos,
+    .version = "0.1.0",
+    .minimum_zig_version = "0.14.1",
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "layout.zig",
+        "linker.ld",
+        "src",
+        "tools",
+        "assets",
+    },
+}

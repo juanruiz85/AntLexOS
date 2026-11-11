@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Construir y publicar release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends nasm qemu-system-x86 ovmf python3-pil p7zip-full
+
+      - name: Zig 0.14.1 (versión fijada)
+        run: |
+          curl -sL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ
+          echo "$PWD/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
+
+      - name: Compilar y probar
+        run: |
+          zig build -Drelease=true
+          zig build test
+          python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas --tiempo 60
+
+      - name: Empaquetar binarios del release
+        run: bash tools/empaquetar_release.sh
+
+      - name: Crear release con binarios
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --title "AntLex OS $TAG" \
+            --notes-file dist/NOTAS.md

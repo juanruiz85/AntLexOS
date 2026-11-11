@@ -1,0 +1,16 @@
+AntLex OS — LEEME
+=================
+
+Bienvenido a AntLex OS, un sistema operativo experimental construido desde
+cero en Zig para x86_64.
+
+Esta unidad contiene el volumen ALFS (AntLex File System) que el sistema
+montara a partir de la Fase 2 (v0.2.0). En esta version (v0.1.0) el
+volumen todavia esta vacio.
+
+Carpetas previstas:
+  /docs    manuales y documentacion del sistema
+  /LEX     base de conocimiento de la asistente (Fase 4)
+
+Proyecto: https://github.com/juanruiz85/AntLexOS
+Licencia: GPL-3.0

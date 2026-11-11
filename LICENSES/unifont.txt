@@ -1,0 +1,21 @@
+GNU Unifont — nota de licencia
+==============================
+
+La fuente bitmap del kernel (src/kernel/fuente_datos.zig) se genera a
+partir de GNU Unifont (https://unifoundry.com/unifont/).
+
+GNU Unifont tiene doble licencia:
+  * GPL-2.0-o-superior CON la excepción de fuentes de GNU (Font Exception),
+  * o la SIL Open Font License 1.1, a elección.
+
+La excepción de fuentes permite embeber los glifos en un documento o
+sistema sin que este herede la GPL. AntLex OS incluye un subconjunto de
+133 glifos (ASCII + letras latinas acentuadas en minúscula/mayúscula +
+signos españoles + caracteres de caja) generado por tools/genfont.zig.
+
+El subconjunto usado se conserva en assets/unifont_subconjunto.hex para
+reproducibilidad. La fuente completa puede obtenerse del paquete "unifont"
+de Debian/Ubuntu (ruta /usr/share/unifont/unifont.hex) o de unifoundry.
+
+No se incluyen glifos artísticamente modificados: son los originales de
+Unifont tal cual.

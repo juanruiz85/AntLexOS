@@ -1,0 +1,11 @@
+build/
+*.img
+*.iso
+*.efi
+*.log
+.zig-cache/
+zig-out/
+ktest
+ktest.o
+*.o
+*.elf
