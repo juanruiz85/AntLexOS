@@ -80,6 +80,9 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0043 | 2026-11-11 | 0.3.0 | Auditoría `auditar.py` + revisión de seguridad REV-FASE3 | ❌→✅ | Agente revisor: APTO CON OBSERVACIONES — 1 hallazgo crítico (pánico por mes CMOS 0, reproducido) + 3 medios (columna de tamaño de `lista` nunca impresa —bug de v0.2.0—, falso positivo del paso flecha-arriba del arnés, autocompletado por alias con basura) + 6 menores; TODO corregido antes del tag (ver docs/revision_seguridad.md) |
 | P-0044 | 2026-11-11 | 0.3.0 | **Suite completa tras correcciones REV-FASE3** | ✅ | Host 23/23 (nueva prueba de regresión del saneo CMOS), BIOS 12/12 + capturas, UEFI 12/12, persistencia ALFS en BIOS y UEFI, arnés del intérprete 22 pasos (nueva comprobación de la columna de tamaño), apagado ACPI verificado |
 
+| P-0045 | 2026-11-11 | 0.3.0 | CI GitHub (push main + tag v0.3.0) | ✅ | Workflow CI en verde: build + fmt + 23/23 host + arranque BIOS + auditoría; Release workflow en verde |
+| P-0046 | 2026-11-11 | 0.3.0 | **Release v0.3.0 en GitHub** | ✅ | Publicado automáticamente: antlexos-v0.3.0-x86_64.img (29 MB) + src.tar.gz + NOTAS.md + SHA256SUMS — https://github.com/juanruiz85/AntLexOS/releases/tag/v0.3.0 |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
