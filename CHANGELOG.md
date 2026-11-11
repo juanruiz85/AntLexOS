@@ -1,3 +1,44 @@
+## [v0.3.0] - 2026-11-11
+
+### Fase 3 — Intérprete de comandos completo
+
+- **25 comandos** en español con alias en inglés: se añaden `sistema`
+  (sysinfo), `fecha`, `hora`, `historia`, `pruebas`, `renombrar`, `buscar`,
+  `apagar` y `reiniciar` a los 16 de la Fase 2.
+- **Historial con flechas** ↑/↓ (16 entradas, numerado estilo bash, sin
+  duplicados consecutivos, conserva la línea en edición al navegar).
+- **Autocompletado con TAB**: comandos y rutas ALFS. Coincidencia única
+  completa la palabra; múltiples opciones muestran la lista y amplían el
+  prefijo común; los directorios completan con `/`. Comparación sin
+  mayúsculas; los alias completan al nombre canónico.
+- **Reloj de tiempo real** (`src/kernel/reloj.zig`): lectura del CMOS con
+  espera del ciclo de actualización (UIP), conversión BCD/binaria, formatos
+  12/24 h, siglo del registro 0x32 con respaldo al siglo 21, día de la
+  semana por congruencia de Zeller (verificado con 1970-01-01 y 2000-01-01).
+  `fecha` muestra "miércoles 11 de noviembre de 2026" + ISO; `hora`
+  añade el tiempo de encendido.
+- **`sistema`**: resumen tipo neofetch con logo ASCII de la hormiga, CPU por
+  CPUID, memoria total/libre, framebuffer, disco + ALFS, teclado, uptime,
+  fecha y licencia.
+- **`pruebas`**: las 12 autopruebas bajo demanda con eco en la consola
+  gráfica (antes solo por serie). Nueva autoprueba `reloj_rtc` → **12/12**.
+- **`apagar`/`reiniciar`**: sincronizan ALFS si hay cambios pendientes y
+  apagan por ACPI (QEMU cierra solo, verificado por el arnés) o reinician
+  por pulso 8042 con triple fallo de respaldo.
+- **`buscar <texto> [ruta]`**: búsqueda recursiva por nombre (sin
+  mayúsculas) con límite de 100 resultados y profundidad 16; **`renombrar`**
+  cambia el nombre de archivos de forma segura (crea el nuevo antes de
+  borrar el original).
+- **La IA del sistema se llama AntLex** (misma identidad que el sistema,
+  embebida en él): renombrado en TODO, README, manuales y versión en lugar
+  del provisional "LEX".
+- **Arnés `tools/probar_interprete.py`**: sesión real de 22 comprobaciones
+  por QMP (eco, ver, fecha ISO, hora, sistema, historial, flechas, TAB de
+  comandos y de rutas, Ctrl+C, escribir/renombrar/buscar/mostrar/borrar,
+  pruebas 12/12 y apagado ACPI con salida del proceso verificada). Se
+  registra como paso `zig build probar-interprete`.
+- Pruebas host: **23/23** (5 nuevas de Zeller y formatos del reloj + 1 de regresión del saneo CMOS).
+
 ## [v0.2.0] - 2026-11-11
 
 ### Fase 2 — Sistema de archivos ALFS, driver ATA y primeros comandos

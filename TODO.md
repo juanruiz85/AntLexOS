@@ -27,25 +27,30 @@ auditoría en `docs/revision_seguridad.md`.
 - [x] Protocolo boot_info v2 (alfs_ptr/alfs_size) en BIOS y UEFI
 
 ## Fase 3 (v0.3.0) — Intérprete de comandos
-- [ ] `src/kernel/interprete.zig` con ~24 comandos en español + alias
-- [ ] Historial con flechas, autocompletado con TAB
-- [ ] `sistema` (sysinfo con CPUID, memoria, uptime, framebuffer)
-- [ ] Reloj RTC (fecha/hora reales en consola y barra de tareas)
-- [ ] `pruebas` (autopruebas bajo demanda), `apagar`/`reiniciar`
+- [x] `src/kernel/interprete.zig` con **25 comandos** en español + alias
+- [x] Historial con flechas (16 entradas, numerado, sin duplicados consecutivos)
+- [x] Autocompletado con TAB: comandos y rutas ALFS (prefijo común + opciones)
+- [x] `sistema` (sysinfo con logo, CPUID, memoria, uptime, framebuffer)
+- [x] Reloj RTC (`src/kernel/reloj.zig`): `fecha` y `hora` reales (UTC)
+- [x] `pruebas` (autopruebas bajo demanda, eco en consola), `apagar`/`reiniciar`
+      (ACPI/8042 con triple fallo de respaldo)
+- [x] `renombrar` y `buscar` (recursivo, 100 resultados, profundidad 16)
+- [x] Arnés `tools/probar_interprete.py`: sesión real de 22 pasos por QMP
+      (incluye apagado limpio por ACPI verificado)
 
-## Fase 4 (v0.4.0) — IA embebida LEX
-- [ ] `tools/entrenar_lex.zig`: red diminuta (bolsa de palabras → capa
+## Fase 4 (v0.4.0) — IA embebida AntLex
+- [ ] `tools/entrenar_antlex.zig`: red diminuta (bolsa de palabras → capa
       oculta → intenciones) entrenada en build-time, pesos embebidos
 - [ ] Corpus en español con intenciones solo del sistema (~150 ejemplos)
-- [ ] `src/kernel/lex/`: normalización (acentos), sinónimos, clasificación
+- [ ] `src/kernel/antlex/`: normalización (acentos), sinónimos, clasificación
       con umbral de confianza, plantillas con datos en vivo (memoria, CPU…)
-- [ ] `lex <pregunta>` + `lex por que` (explicabilidad) + `lex aprende`
+- [ ] `antlex <pregunta>` + `antlex por que` (explicabilidad) + `antlex aprende`
       (pares guardados en ALFS) — y rechazo educado de temas ajenos
-- [ ] Autoprueba de LEX: preguntas cannicas → intención esperada
+- [ ] Autoprueba de AntLex: preguntas cannicas → intención esperada
 
 ## Fase 5 (v0.5.0) — Escritorio con ventanas
 - [ ] Ratón PS/2 (IRQ12) con cursor
-- [ ] Escritorio dividido: TERMINAL | chat de LEX (paneles base)
+- [ ] Escritorio dividido: TERMINAL | chat de AntLex (paneles base)
 - [ ] Barra de tareas: menú, ventanas abiertas, reloj, memoria
 - [ ] Ventanas flotantes arrastrables: Explorador de archivos, Editor de
       texto, Acerca de

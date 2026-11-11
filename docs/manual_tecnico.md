@@ -1,4 +1,4 @@
-# Manual técnico — AntLex OS v0.2.0
+# Manual técnico — AntLex OS v0.3.0
 
 Documento de referencia interna para desarrollar y depurar el sistema.
 Público: quien quiera entender cómo funciona por dentro o continuar el
@@ -230,16 +230,51 @@ primer_bloque (u32), nbloques (u32).
 
 ### 5.3 Intérprete de comandos (`src/kernel/interprete.zig`)
 
-- Tabla `COMANDOS` con nombre ES + alias EN + ayuda + uso; 16 comandos en
-  v0.2.0 (ver manual de usuario).
+- Tabla `COMANDOS` con nombre ES + alias EN + ayuda + uso; **25 comandos** en
+  v0.3.0 (ver manual de usuario).
 - **Toda la salida se refleja por COM1** (consola remota): base de la
-  automatización de pruebas (`probar_alfs.py` teclea con QMP `send-key` y
-  valida por serie; el mapa ES se tiene en cuenta: solo se inyectan
-  caracteres seguros en ambas distribuciones).
-- Editor de línea: imprimibles, retroceso, Ctrl+C. Historial y TAB llegan
-  en la Fase 3.
+  automatización de pruebas (`probar_interprete.py` y `probar_alfs.py`
+  teclean con QMP `send-key` y validan por serie; el mapa ES se tiene en
+  cuenta: solo se inyectan caracteres seguros en ambas distribuciones).
+- Editor de línea: imprimibles (ASCII + Latin-1: ñ, acentos, ¿¡; el rango C1
+  0x80-0x9F se descarta), retroceso, Ctrl+C.
+- **Historial** (v0.3.0): 16 entradas en array estático con numeración
+  absoluta (`historia_primera`/`historia_num`), sin duplicados consecutivos,
+  flechas ↑/↓ conservando la línea en edición (`en_curso`), redibujado con
+  retrocesos por COM1 para que el arnés lo verifique.
+- **Autocompletado TAB** (v0.3.0): sobre la primera palabra contra
+  `COMANDOS` (alias → nombre canónico) y sobre la última contra los hijos
+  del directorio ALFS implicado. Comparación sin mayúsculas. Coincidencia
+  única → sufijo + espacio (o `/` si es directorio); varias → prefijo común
+  + listado + redibujo de prompt. Máximo 24 coincidencias.
+- **`buscar`**: recursión con búferes por nivel (16 niveles × 64 entradas),
+  límite de 100 resultados; **`renombrar`** crea el nuevo archivo antes de
+  borrar el original (si crear falla, nada cambia).
+- **`apagar`/`reiniciar`**: sincronizan ALFS si `hayCambiosSinSincronizar()`;
+  ACPI (0x604/0xB004 con SLP_EN — valor S5 de QEMU/piix) y pulso 8042
+  (0x64←0xFE) con triple fallo de respaldo (IDT nula + int3). El arnés
+  comprueba que QEMU cierra.
 - Las rutas aceptan absolutas y relativas, `.` y `..`; el prompt muestra
   la ruta actual (`antlex:/ejemplos> `).
+
+### 5.4 Reloj de tiempo real (`src/kernel/reloj.zig`, v0.3.0)
+
+- Lectura por sondeo del CMOS (puertos 0x70/0x71, NMI desactivada durante
+  la selección) con espera acotada del bit UIP del registro A.
+- Registro B decide BCD/binario y 12/24 h (con bit PM). Siglo del registro
+  0x32 con respaldo al siglo 21 si devuelve basura.
+- Día de la semana por congruencia de Zeller, verificado en pruebas host
+  con 1970-01-01 (jueves) y 2000-01-01 (sábado).
+- Formatos: ISO (`2026-11-11 13:09:41`), texto largo (`miércoles 11 de
+  noviembre de 2026`), hora (`13:09:41`) y uptime (`3h 02m 05s`).
+- Sin IRQ8: `valida()` acota rangos y la autoprueba `reloj_rtc` (12.ª) la
+  comprueba en cada arranque. Además `leer()` sanea mes/día/hora a rangos
+  válidos (un CMOS con batería agotada puede devolver 0/basura: sin el
+  saneo, `MESES[mes-1]` provocaría un pánico por underflow — hallazgo
+  H-1 de REV-FASE3).
+- Efecto lateral documentado: cada lectura enmascara la NMI (bit 7 del
+  puerto 0x70) y no se restaura; hoy es inofensivo porque el kernel no
+  usa NMI (H-6 de REV-FASE3).
 
 ## 6. Sistema de compilación
 
@@ -251,10 +286,11 @@ primer_bloque (u32), nbloques (u32).
 | `stage1`/`stage2` | NASM (`-f bin`, `-D STAGE2_SECTORES=32`; variante `-D CD=1`) |
 | `mkimage` | `zig run tools/mkimage.zig`: parsea el ELF (PT_LOAD), binario plano + cabecera (entry/bss/crc32) + particiones → imagen base |
 | `mkalfs` | ejecutable host con el MISMO módulo `alfs_volumen`: genera la partición 3 desde `fsroot/` → `zig-out/antlexos.img` |
-| `test` | pruebas unitarias en host (`src/tests.zig` + pruebas de formato/volumen ALFS) |
+| `test` | pruebas unitarias en host (`src/tests.zig` + pruebas de formato/volumen ALFS + reloj) |
 | `probar` | `tools/probar_boot.py` (QEMU + serial + QMP + validación de píxeles) |
 | `probar-uefi` | igual con OVMF (pflash dual) |
 | `probar-alfs` | `tools/probar_alfs.py`: escribe un archivo por teclado QMP, sincroniza, REINICIA la VM y verifica la persistencia |
+| `probar-interprete` | `tools/probar_interprete.py`: sesión real de 22 pasos (historial, TAB, reloj, buscar, apagado ACPI) |
 | `fuente` | regenera `fuente_datos.zig` desde `assets/unifont.hex` |
 
 Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).

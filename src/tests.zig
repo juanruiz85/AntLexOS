@@ -8,6 +8,7 @@ const bi = @import("kernel/boot_info.zig");
 const fuente = @import("kernel/fuente.zig");
 const datos = @import("kernel/fuente_datos.zig");
 const mem = @import("kernel/mem.zig");
+const reloj = @import("kernel/reloj.zig");
 const alfs_formato = @import("kernel/alfs_formato.zig");
 const alfs_volumen = @import("kernel/alfs_volumen.zig");
 
@@ -15,6 +16,10 @@ test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
     _ = alfs_formato;
     _ = alfs_volumen;
+}
+
+test "reloj: ejecuta las pruebas del RTC (Zeller y formatos)" {
+    _ = reloj;
 }
 
 test "boot_info mide 80 bytes (76 campos + relleno)" {

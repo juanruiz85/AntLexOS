@@ -4,12 +4,14 @@
 
 const std = @import("std");
 const serial = @import("serial.zig");
+const consola = @import("consola.zig");
 const boot_info = @import("boot_info.zig");
 const pantalla = @import("pantalla.zig");
 const fuente = @import("fuente.zig");
 const teclado = @import("teclado.zig");
 const mem = @import("mem.zig");
 const pit = @import("pit.zig");
+const reloj = @import("reloj.zig");
 const x86 = @import("x86.zig");
 const version = @import("version.zig");
 const ata = @import("ata.zig");
@@ -19,20 +21,33 @@ const fmt = @import("alfs_formato.zig");
 var pasan: u32 = 0;
 var fallan: u32 = 0;
 
+/// Cuando está activo, la salida también se dibuja en la consola gráfica
+/// (lo usa el comando `pruebas` del intérprete).
+var eco_consola = false;
+
+pub fn activarEcoConsola(v: bool) void {
+    eco_consola = v;
+}
+
+fn eco(txt: []const u8) void {
+    serial.puts(txt);
+    if (eco_consola) consola.puts(txt);
+}
+
 fn comprobar(nombre: []const u8, ok: bool, detalle: []const u8) void {
     if (ok) {
         pasan += 1;
-        serial.puts("[ OK ] ");
+        eco("[ OK ] ");
     } else {
         fallan += 1;
-        serial.puts("[FALLA] ");
+        eco("[FALLA] ");
     }
-    serial.puts(nombre);
+    eco(nombre);
     if (detalle.len > 0) {
-        serial.puts(" -> ");
-        serial.puts(detalle);
+        eco(" -> ");
+        eco(detalle);
     }
-    serial.puts("\n");
+    eco("\n");
 }
 
 pub fn ultimaCuenta() struct { pasan: u32, fallan: u32 } {
@@ -138,17 +153,20 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
         comprobar("alfs_operaciones", false, "ALFS no montado");
     }
 
+    // 12) reloj de tiempo real (CMOS)
+    const f = reloj.leer();
+    comprobar("reloj_rtc", reloj.valida(f), "fecha y hora del CMOS");
+
     // resumen
-    serial.puts("AUTOPRUEBAS ");
-    serial.putDec(pasan);
-    serial.putc('/');
-    serial.putDec(pasan + fallan);
-    serial.puts(" correctas\n");
+    var nbuf: [48]u8 = undefined;
+    eco("AUTOPRUEBAS ");
+    eco(std.fmt.bufPrint(&nbuf, "{d}/{d} correctas", .{ pasan, pasan + fallan }) catch "?/?");
+    eco("\n");
     if (fallan == 0) {
-        serial.puts("ANTLEX BOOT OK v");
-        serial.puts(version.VERSION);
-        serial.puts("\n");
+        eco("ANTLEX BOOT OK v");
+        eco(version.VERSION);
+        eco("\n");
     } else {
-        serial.puts("ANTLEX BOOT CON ERRORES\n");
+        eco("ANTLEX BOOT CON ERRORES\n");
     }
 }

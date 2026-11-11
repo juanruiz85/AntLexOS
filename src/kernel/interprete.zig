@@ -2,7 +2,8 @@
 //! Comandos en español con alias en inglés; toda la salida se refleja por
 //! el puerto serie (consola remota para pruebas automatizadas).
 //! Fase 2: comandos de archivos ALFS y base del sistema.
-//! Fase 3 (siguiente): historial, autocompletado, reloj, apagado…
+//! Fase 3: historial con flechas, autocompletado con TAB, reloj RTC,
+//!         sistema (sysinfo), pruebas, renombrar, buscar, apagar/reiniciar.
 
 const std = @import("std");
 const consola = @import("consola.zig");
@@ -15,6 +16,10 @@ const mem = @import("mem.zig");
 const ata = @import("ata.zig");
 const x86 = @import("x86.zig");
 const boot_info = @import("boot_info.zig");
+const pantalla = @import("pantalla.zig");
+const pit = @import("pit.zig");
+const reloj = @import("reloj.zig");
+const autoprueba = @import("autoprueba.zig");
 
 const LARGO_LINEA = 120;
 const LARGO_RUTA = 96;
@@ -23,6 +28,90 @@ var bi_global: ?*const boot_info.BootInfo = null;
 var cwd: u16 = fmt.RAIZ;
 var linea: [LARGO_LINEA]u8 = undefined;
 var len: usize = 0;
+
+// ---------------------------------------------------------------------------
+// historial de comandos (Fase 3)
+// ---------------------------------------------------------------------------
+
+const HISTORIA_MAX = 16;
+var historial: [HISTORIA_MAX][LARGO_LINEA]u8 = undefined;
+var historial_len: [HISTORIA_MAX]usize = undefined;
+var historia_primera: usize = 0; // número absoluto (0-based) de la más antigua
+var historia_num: usize = 0; // total de líneas guardadas
+var nav_pos: usize = 0; // posición de navegación (historia_num = línea nueva)
+var en_curso: [LARGO_LINEA]u8 = undefined;
+var en_curso_len: usize = 0;
+var navegando = false;
+
+fn guardarHistorial(l: []const u8) void {
+    // recortar espacios y descartar líneas vacías
+    var s = l;
+    while (s.len > 0 and s[0] == ' ') s = s[1..];
+    while (s.len > 0 and s[s.len - 1] == ' ') s = s[0 .. s.len - 1];
+    if (s.len == 0) return;
+    // sin duplicados consecutivos
+    if (historia_num > historia_primera) {
+        const ult = historia_num - 1;
+        if (std.mem.eql(u8, historial[ult - historia_primera][0..historial_len[ult - historia_primera]], s)) return;
+    }
+    if (historia_num - historia_primera == HISTORIA_MAX) {
+        // desplazar: se pierde la más antigua
+        var i: usize = 1;
+        while (i < HISTORIA_MAX) : (i += 1) {
+            historial[i - 1] = historial[i];
+            historial_len[i - 1] = historial_len[i];
+        }
+        historia_primera += 1;
+    }
+    const slot = historia_num - historia_primera;
+    @memcpy(historial[slot][0..s.len], s);
+    historial_len[slot] = s.len;
+    historia_num += 1;
+}
+
+/// Sustituye la línea en edición por otra: borra lo escrito (retrocesos)
+/// y hace el eco de la nueva, en consola y serie.
+fn cargarLinea(nueva: []const u8) void {
+    var i: usize = 0;
+    while (i < len) : (i += 1) {
+        // retroceso + espacio + retroceso: borra el glifo en consola y en serie
+        consola.putc(8);
+        consola.putc(' ');
+        consola.putc(8);
+        serial.putc(8);
+        serial.putc(' ');
+        serial.putc(8);
+    }
+    const n = @min(nueva.len, linea.len);
+    @memcpy(linea[0..n], nueva[0..n]);
+    len = n;
+    salida(linea[0..len]);
+}
+
+fn flechaArriba() void {
+    if (historia_num == 0 or nav_pos <= historia_primera) return;
+    if (!navegando) {
+        @memcpy(en_curso[0..len], linea[0..len]);
+        en_curso_len = len;
+        navegando = true;
+    }
+    nav_pos -= 1;
+    const slot = nav_pos - historia_primera;
+    cargarLinea(historial[slot][0..historial_len[slot]]);
+}
+
+fn flechaAbajo() void {
+    if (!navegando) return;
+    if (nav_pos >= historia_num) return;
+    nav_pos += 1;
+    if (nav_pos == historia_num) {
+        navegando = false;
+        cargarLinea(en_curso[0..en_curso_len]);
+        return;
+    }
+    const slot = nav_pos - historia_primera;
+    cargarLinea(historial[slot][0..historial_len[slot]]);
+}
 
 // ---------------------------------------------------------------------------
 // salida (consola + serie)
@@ -177,6 +266,12 @@ fn cmdVer(args: []const u8) void {
     }
     salida("\ndisco: ");
     salida(ata.modelo());
+    var buf: [80]u8 = undefined;
+    const f = reloj.leer();
+    salida("\nreloj: ");
+    salida(reloj.iso(f, &buf));
+    salida(" · encendido: ");
+    salida(reloj.textoUptime(pit.uptimeSeg(), &buf));
     salida("\n");
 }
 
@@ -204,7 +299,7 @@ fn cbLista(ctx: *ContextoLista, indice: u16, e: *const fmt.Entrada) void {
     var pad: usize = nombre.len;
     while (pad < 30) : (pad += 1) salida(" ");
     salida(" ");
-    var buf: [16]u8 = undefined;
+    var buf: [24]u8 = undefined; // 19+ bytes: "99999999 B  999 blk"
     if (e.tipo == fmt.TIPO_ARCHIVO) {
         const s = std.fmt.bufPrint(&buf, "{d:>8} B  {d:>3} blk", .{ e.tam, e.nbloques }) catch "";
         salida(s);
@@ -554,6 +649,479 @@ fn cmdTeclado(args: []const u8) void {
 }
 
 // ---------------------------------------------------------------------------
+// autocompletado con TAB (Fase 3)
+// ---------------------------------------------------------------------------
+
+fn appendCaracteres(s: []const u8) void {
+    for (s) |c| {
+        if (len < linea.len) {
+            linea[len] = c;
+            len += 1;
+            consola.putc(c);
+            serial.putc(c);
+        }
+    }
+}
+
+/// ¿Empieza `nombre` por `prefijo`? (comparación sin mayúsculas, ASCII)
+fn empiezaConCI(nombre: []const u8, prefijo: []const u8) bool {
+    if (nombre.len < prefijo.len) return false;
+    for (prefijo, 0..) |c, i| {
+        const a = if (c >= 'A' and c <= 'Z') c + 32 else c;
+        const b0 = nombre[i];
+        const b = if (b0 >= 'A' and b0 <= 'Z') b0 + 32 else b0;
+        if (a != b) return false;
+    }
+    return true;
+}
+
+/// ¿Contiene `pajar` a `aguja`? (sin mayúsculas)
+fn contieneCI(pajar: []const u8, aguja: []const u8) bool {
+    if (aguja.len == 0) return true;
+    if (pajar.len < aguja.len) return false;
+    var i: usize = 0;
+    while (i + aguja.len <= pajar.len) : (i += 1) {
+        if (empiezaConCI(pajar[i..], aguja)) return true;
+    }
+    return false;
+}
+
+const MAX_COINC = 24;
+var coinc_nombres: [MAX_COINC][]const u8 = undefined;
+var coinc_es_dir = [_]bool{false} ** MAX_COINC;
+var coinc_n: usize = 0;
+
+/// Completa la coincidencia única o muestra las opciones (y amplía el
+/// prefijo común). `escrito` = caracteres ya tecleados del nombre.
+fn resolverCoincidencias(escrito: usize, es_comando: bool) void {
+    if (coinc_n == 0) return;
+    if (coinc_n == 1) {
+        const nom = coinc_nombres[0];
+        if (nom.len > escrito) appendCaracteres(nom[escrito..]);
+        if (es_comando or !coinc_es_dir[0]) {
+            appendCaracteres(" ");
+        } else {
+            appendCaracteres("/");
+        }
+        return;
+    }
+    // prefijo común entre las coincidencias
+    var comun = escrito;
+    comun: while (comun < coinc_nombres[0].len) {
+        const c = coinc_nombres[0][comun];
+        for (coinc_nombres[0..coinc_n]) |nom| {
+            if (comun >= nom.len or nom[comun] != c) break :comun;
+        }
+        comun += 1;
+    }
+    if (comun > escrito) appendCaracteres(coinc_nombres[0][escrito..comun]);
+    // listar opciones y redibujar prompt+línea
+    salida("\n");
+    for (coinc_nombres[0..coinc_n]) |nom| {
+        salida(nom);
+        salida("  ");
+    }
+    salida("\n");
+    prompt();
+    salida(linea[0..len]);
+}
+
+fn autocompletarComando(prefijo: []const u8) void {
+    coinc_n = 0;
+    for (COMANDOS) |c| {
+        if (coinc_n >= MAX_COINC) break;
+        const por_nombre = empiezaConCI(c.nombre, prefijo);
+        if (por_nombre) {
+            coinc_nombres[coinc_n] = c.nombre;
+            coinc_es_dir[coinc_n] = false;
+            coinc_n += 1;
+        }
+        // un alias también completa, con el propio alias como texto
+        if (!por_nombre and c.alias.len > 0 and empiezaConCI(c.alias, prefijo)) {
+            coinc_nombres[coinc_n] = c.alias;
+            coinc_es_dir[coinc_n] = false;
+            coinc_n += 1;
+        }
+    }
+    resolverCoincidencias(prefijo.len, true);
+}
+
+const CtxComp = struct {
+    nombre: []const u8,
+    n: usize,
+};
+
+fn cbComp(ctx: *CtxComp, indice: u16, e: *const fmt.Entrada) void {
+    _ = indice;
+    if (ctx.n >= MAX_COINC) return;
+    const nom = nombreEntrada(e);
+    if (empiezaConCI(nom, ctx.nombre)) {
+        coinc_nombres[ctx.n] = nom;
+        coinc_es_dir[ctx.n] = e.tipo == fmt.TIPO_DIRECTORIO;
+        ctx.n += 1;
+    }
+}
+
+fn autocompletarRuta(prefijo: []const u8) void {
+    if (!alfs.montado()) return;
+    const v = alfs.actual().?;
+    var dir_parte: []const u8 = ".";
+    var nombre = prefijo;
+    if (std.mem.lastIndexOfScalar(u8, prefijo, '/')) |i| {
+        dir_parte = prefijo[0..i];
+        nombre = prefijo[i + 1 ..];
+    }
+    const dir_idx = v.resolverDesde(cwd, dir_parte) catch return;
+    if (v.tipoDe(dir_idx) != fmt.TIPO_DIRECTORIO) return;
+    var ctx = CtxComp{ .nombre = nombre, .n = 0 };
+    v.hijosDe(dir_idx, &ctx, cbComp);
+    coinc_n = ctx.n;
+    resolverCoincidencias(nombre.len, false);
+}
+
+fn autocompletar() void {
+    if (len == 0) return;
+    var inicio: usize = len;
+    while (inicio > 0 and linea[inicio - 1] != ' ') inicio -= 1;
+    const prefijo = linea[inicio..len];
+    if (inicio == 0) {
+        autocompletarComando(prefijo);
+    } else {
+        autocompletarRuta(prefijo);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// comandos de Fase 3
+// ---------------------------------------------------------------------------
+
+fn cmdSistema(args: []const u8) void {
+    _ = args;
+    const m = mem.estadisticas();
+    var buf: [96]u8 = undefined;
+
+    salidaColor(consola.COLOR_TITULO,
+        \\      \  /
+        \\    ( o o )      AntLex OS
+        \\     \ - /
+        \\   .-'~~~'-.
+        \\  / |     | \
+        \\    |     |
+        \\   _|     |_
+    );
+    salida("\n\n");
+
+    const modo: []const u8 = if (bi_global) |bi| (if (bi.flags & boot_info.MODO_UEFI != 0) "UEFI" else "BIOS") else "?";
+    const modo_cd: []const u8 = if (bi_global) |bi| (if (bi.flags & boot_info.MODO_CD != 0) " + CD" else "") else "";
+
+    salida("  sistema    : ");
+    salida(version.NOMBRE);
+    salida(" v");
+    salida(version.VERSION);
+    salida(" (");
+    salida(modo);
+    salida(modo_cd);
+    salida(")\n");
+
+    var marca = [_]u8{0} ** 48;
+    x86.cpuidMarca(&marca);
+    salida("  cpu        : ");
+    salida(std.mem.trim(u8, &marca, " "));
+    salida("\n  memoria    : ");
+    salida(std.fmt.bufPrint(&buf, "{d} MiB totales, {d} MiB libres", .{ m.total / (1024 * 1024), m.libre / (1024 * 1024) }) catch "?");
+    salida("\n  pantalla   : ");
+    salida(std.fmt.bufPrint(&buf, "{d}x{d}, {d} bpp", .{ pantalla.anchoPix(), pantalla.altoPix(), 32 }) catch "?");
+    salida("\n  disco      : ");
+    salida(ata.modelo());
+    if (alfs.montado()) {
+        const v = alfs.actual().?;
+        salida(std.fmt.bufPrint(&buf, " (ALFS: {d}/{d} bloques libres)", .{ v.libres(), v.n_bloques }) catch "");
+    }
+    salida("\n  teclado    : ");
+    salida(teclado.distribucion());
+    salida(" (cambia con 'teclado es|us')");
+    salida("\n  encendido  : ");
+    salida(reloj.textoUptime(pit.uptimeSeg(), &buf));
+    const f = reloj.leer();
+    salida("\n  fecha      : ");
+    salida(reloj.iso(f, &buf));
+    salida("\n  licencia   : ");
+    salida(version.LICENCIA);
+    salida(" · autor: juanruiz85\n");
+}
+
+fn cmdFecha(args: []const u8) void {
+    _ = args;
+    const f = reloj.leer();
+    var buf: [80]u8 = undefined;
+    salida("Hoy es ");
+    salida(reloj.textoLargo(f, &buf));
+    salida("  (");
+    salida(reloj.iso(f, &buf));
+    salida(" UTC)\n");
+}
+
+fn cmdHora(args: []const u8) void {
+    _ = args;
+    const f = reloj.leer();
+    var buf: [80]u8 = undefined;
+    salida("Son las ");
+    salida(reloj.textoHora(f, &buf));
+    salida(" UTC · encendido: ");
+    salida(reloj.textoUptime(pit.uptimeSeg(), &buf));
+    salida("\n");
+}
+
+fn cmdPruebas(args: []const u8) void {
+    _ = args;
+    const bi = bi_global orelse {
+        fallo("boot_info no disponible");
+        return;
+    };
+    salida("Ejecutando autopruebas (detalle tambien por COM1):\n");
+    autoprueba.activarEcoConsola(true);
+    autoprueba.ejecutar(bi);
+    autoprueba.activarEcoConsola(false);
+    const c = autoprueba.ultimaCuenta();
+    if (c.fallan == 0) {
+        var nbuf: [48]u8 = undefined;
+        ok(std.fmt.bufPrint(&nbuf, "autopruebas {d}/{d} correctas", .{ c.pasan, c.pasan + c.fallan }) catch "autopruebas correctas");
+        salida("\n");
+    } else {
+        fallo("hay autopruebas fallidas (ver detalle)");
+    }
+}
+
+fn cmdHistoria(args: []const u8) void {
+    _ = args;
+    if (historia_num == 0) {
+        salida("(historial vacio)\n");
+        return;
+    }
+    var n = historia_primera;
+    while (n < historia_num) : (n += 1) {
+        var nbuf: [16]u8 = undefined;
+        salida("  ");
+        salida(std.fmt.bufPrint(&nbuf, "{d:>3}", .{n + 1}) catch "  ?");
+        salida("  ");
+        salida(historial[n - historia_primera][0..historial_len[n - historia_primera]]);
+        salida("\n");
+    }
+}
+
+fn cmdRenombrar(args: []const u8) void {
+    const v = volActual() orelse return;
+    const p = partir(args);
+    if (p.primero.len == 0 or p.resto.len == 0) {
+        fallo("uso: renombrar <archivo> <nuevo-nombre>");
+        return;
+    }
+    const pd = partir(p.resto);
+    if (pd.resto.len > 0) {
+        fallo("el nuevo nombre debe ser un nombre simple, sin espacios ni rutas");
+        return;
+    }
+    const idx = v.resolverDesde(cwd, p.primero) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    if (v.tipoDe(idx) != fmt.TIPO_ARCHIVO) {
+        fallo("solo se renombran archivos (directorios en una fase futura)");
+        return;
+    }
+    const tam = v.tamDe(idx) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const buf_p = mem.alloc(if (tam == 0) 1 else tam, 16) catch {
+        fallo("sin memoria");
+        return;
+    };
+    const buf: []u8 = @as([*]u8, @ptrFromInt(buf_p))[0..tam];
+    _ = v.leer(idx, buf) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const d = dividirRuta(p.primero);
+    const padre: u16 = if (d.dir.len == 0) fmt.RAIZ else v.resolverDesde(cwd, d.dir) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    // crear el nuevo y borrar el viejo: si crear falla, el original queda intacto
+    _ = v.crear(padre, pd.primero, fmt.TIPO_ARCHIVO, buf) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    v.borrar(idx) catch |err| {
+        salida("renombrado a ");
+        salida(pd.primero);
+        salida(" PERO no se pudo borrar el original (");
+        salida(textoErrorAlfs(err));
+        salida("); quedan dos archivos\n");
+        alfs.marcar();
+        return;
+    };
+    alfs.marcar();
+    salida("renombrado a ");
+    salida(pd.primero);
+    salida(" (");
+    entero(tam);
+    salida(" bytes)\n");
+}
+
+const BufNivel = struct {
+    indices: [64]u16 = undefined,
+    tipos: [64]u8 = undefined,
+    nombres: [64][48]u8 = undefined,
+    nombres_len: [64]u8 = undefined,
+    n: usize = 0,
+};
+
+const PROFUNDIDAD_MAX = 16; // límite de ALFS
+var niveles_buscar: [PROFUNDIDAD_MAX]BufNivel = undefined;
+var buf_ruta_buscar: [PROFUNDIDAD_MAX][128]u8 = undefined;
+
+const CtxNivel = struct { nivel: *BufNivel };
+
+fn cbNivel(ctx: *CtxNivel, indice: u16, e: *const fmt.Entrada) void {
+    const b = ctx.nivel;
+    if (b.n >= 64) return;
+    const nom = nombreEntrada(e);
+    const n = @min(nom.len, 48);
+    @memcpy(b.nombres[b.n][0..n], nom[0..n]);
+    b.nombres_len[b.n] = @intCast(n);
+    b.indices[b.n] = indice;
+    b.tipos[b.n] = e.tipo;
+    b.n += 1;
+}
+
+const CtxBuscar = struct {
+    patron: []const u8,
+    resultados: u32 = 0,
+    limite: u32 = 100,
+};
+
+fn buscarRec(ctx: *CtxBuscar, v: *alfs.Volumen, dir: u16, prefijo: []const u8, nivel: usize) void {
+    if (nivel >= PROFUNDIDAD_MAX or ctx.resultados >= ctx.limite) return;
+    const b = &niveles_buscar[nivel];
+    b.n = 0;
+    var ctxn = CtxNivel{ .nivel = b };
+    v.hijosDe(dir, &ctxn, cbNivel);
+    var i: usize = 0;
+    while (i < b.n and ctx.resultados < ctx.limite) : (i += 1) {
+        const nom = b.nombres[i][0..b.nombres_len[i]];
+        // la coincidencia se comprueba SIEMPRE (usa `nom`, no la ruta)
+        const coincide = contieneCI(nom, ctx.patron);
+        const ruta_buf = &buf_ruta_buscar[nivel];
+        const ruta = std.fmt.bufPrint(ruta_buf, "{s}/{s}", .{ prefijo, nom }) catch {
+            // la ruta completa no cabe: informa con el nombre relativo y
+            // no se puede descender en este subdirectorio (límite documentado)
+            if (coincide) {
+                salida("  .../");
+                salida(nom);
+                salida("\n");
+                ctx.resultados += 1;
+            }
+            continue;
+        };
+        if (coincide) {
+            salida("  ");
+            salida(ruta);
+            salida("\n");
+            ctx.resultados += 1;
+        }
+        if (b.tipos[i] == fmt.TIPO_DIRECTORIO) {
+            buscarRec(ctx, v, b.indices[i], ruta, nivel + 1);
+        }
+    }
+}
+
+fn cmdBuscar(args: []const u8) void {
+    const v = volActual() orelse return;
+    const p = partir(args);
+    if (p.primero.len == 0) {
+        fallo("uso: buscar <texto> [ruta]");
+        return;
+    }
+    var inicio = cwd;
+    if (p.resto.len > 0) {
+        inicio = v.resolverDesde(cwd, p.resto) catch |err| {
+            alfsOError(err);
+            return;
+        };
+        if (v.tipoDe(inicio) != fmt.TIPO_DIRECTORIO) {
+            fallo("no es un directorio");
+            return;
+        }
+    }
+    var ruta_raiz: [LARGO_RUTA]u8 = undefined;
+    const n = v.rutaAbsoluta(inicio, &ruta_raiz) catch 0;
+    salida("Buscando \"");
+    salida(p.primero);
+    salida("\" desde ");
+    salida(ruta_raiz[0..n]);
+    salida(":\n");
+    var ctx = CtxBuscar{ .patron = p.primero };
+    buscarRec(&ctx, v, inicio, ruta_raiz[0..n], 0);
+    if (ctx.resultados >= ctx.limite) {
+        salida("  (limite de ");
+        var nbuf2: [16]u8 = undefined;
+        salida(std.fmt.bufPrint(&nbuf2, "{d}", .{ctx.limite}) catch "?");
+        salida(" resultados alcanzado)\n");
+    }
+    if (ctx.resultados == 0) {
+        salida("  (sin coincidencias)\n");
+    } else {
+        var nbuf: [48]u8 = undefined;
+        salida("  ");
+        salida(std.fmt.bufPrint(&nbuf, "{d} coincidencia(s)", .{ctx.resultados}) catch "?");
+        salida("\n");
+    }
+}
+
+fn cmdApagar(args: []const u8) void {
+    _ = args;
+    salida("APAGANDO: ");
+    if (alfs.montado() and alfs.hayCambiosSinSincronizar()) {
+        salida("sincronizando ALFS... ");
+        if (alfs.sincronizar()) |_| {
+            salida("hecho. ");
+        } else |_| {}
+    }
+    salida("hasta pronto.\n");
+    x86.cli();
+    // ACPI (QEMU y hardware moderno)
+    x86.outw(0x604, 0x2000);
+    x86.outw(0xB004, 0x2000);
+    while (true) x86.hlt();
+}
+
+fn cmdReiniciar(args: []const u8) void {
+    _ = args;
+    salida("REINICIANDO: ");
+    if (alfs.montado() and alfs.hayCambiosSinSincronizar()) {
+        salida("sincronizando ALFS... ");
+        if (alfs.sincronizar()) |_| {
+            salida("hecho. ");
+        } else |_| {}
+    }
+    salida("adios.\n");
+    x86.cli();
+    // pulso de reset del controlador 8042
+    x86.outb(0x64, 0xFE);
+    x86.ioWait();
+    x86.ioWait();
+    // plan B: triple fallo (IDT nula + interrupcion inevitable)
+    var idt_nula = [_]u8{0} ** 10;
+    asm volatile ("lidtq (%[d])"
+        :
+        : [d] "r" (&idt_nula),
+    );
+    asm volatile ("int3");
+    while (true) x86.hlt();
+}
+
+// ---------------------------------------------------------------------------
 // tabla de comandos
 // ---------------------------------------------------------------------------
 
@@ -568,6 +1136,7 @@ const Comando = struct {
 const COMANDOS = [_]Comando{
     .{ .nombre = "ayuda", .alias = "help", .ayuda = "lista de comandos", .uso = "ayuda [comando]", .ejecutar = cmdAyuda },
     .{ .nombre = "ver", .alias = "version", .ayuda = "version y datos del sistema", .uso = "ver", .ejecutar = cmdVer },
+    .{ .nombre = "sistema", .alias = "sysinfo", .ayuda = "resumen grafico del sistema", .uso = "sistema", .ejecutar = cmdSistema },
     .{ .nombre = "eco", .alias = "echo", .ayuda = "muestra texto", .uso = "eco <texto>", .ejecutar = cmdEco },
     .{ .nombre = "limpiar", .alias = "cls", .ayuda = "borra la pantalla", .uso = "limpiar", .ejecutar = cmdLimpiar },
     .{ .nombre = "lista", .alias = "ls", .ayuda = "contenido de un directorio", .uso = "lista [ruta]", .ejecutar = cmdLista },
@@ -579,9 +1148,17 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "nuevodir", .alias = "mkdir", .ayuda = "crea un directorio", .uso = "nuevodir <nombre>", .ejecutar = cmdNuevoDir },
     .{ .nombre = "borrar", .alias = "rm", .ayuda = "elimina archivo o directorio vacio", .uso = "borrar <ruta>", .ejecutar = cmdBorrar },
     .{ .nombre = "copiar", .alias = "cp", .ayuda = "copia un archivo", .uso = "copiar <origen> <destino>", .ejecutar = cmdCopiar },
+    .{ .nombre = "renombrar", .alias = "mv", .ayuda = "cambia el nombre de un archivo", .uso = "renombrar <archivo> <nuevo>", .ejecutar = cmdRenombrar },
+    .{ .nombre = "buscar", .alias = "find", .ayuda = "busca archivos por nombre", .uso = "buscar <texto> [ruta]", .ejecutar = cmdBuscar },
     .{ .nombre = "espacio", .alias = "df", .ayuda = "espacio libre del volumen", .uso = "espacio", .ejecutar = cmdEspacio },
     .{ .nombre = "sincronizar", .alias = "sync", .ayuda = "escribe los cambios al disco", .uso = "sincronizar", .ejecutar = cmdSincronizar },
     .{ .nombre = "teclado", .alias = "", .ayuda = "distribucion de teclado es|us", .uso = "teclado es|us", .ejecutar = cmdTeclado },
+    .{ .nombre = "fecha", .alias = "date", .ayuda = "fecha del reloj de tiempo real", .uso = "fecha", .ejecutar = cmdFecha },
+    .{ .nombre = "hora", .alias = "time", .ayuda = "hora y tiempo de encendido", .uso = "hora", .ejecutar = cmdHora },
+    .{ .nombre = "historia", .alias = "history", .ayuda = "historial de comandos", .uso = "historia", .ejecutar = cmdHistoria },
+    .{ .nombre = "pruebas", .alias = "test", .ayuda = "ejecuta las autopruebas", .uso = "pruebas", .ejecutar = cmdPruebas },
+    .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
+    .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };
 
 // ---------------------------------------------------------------------------
@@ -592,6 +1169,10 @@ pub fn init(bi: *const boot_info.BootInfo) void {
     bi_global = bi;
     cwd = fmt.RAIZ;
     len = 0;
+    historia_primera = 0;
+    historia_num = 0;
+    nav_pos = 0;
+    navegando = false;
 }
 
 fn prompt() void {
@@ -634,6 +1215,8 @@ pub fn bucle() noreturn {
     while (true) {
         prompt();
         len = 0;
+        nav_pos = historia_num;
+        navegando = false;
         var terminada = false;
         while (!terminada) {
             x86.hlt();
@@ -642,6 +1225,7 @@ pub fn bucle() noreturn {
                     '\n', '\r' => {
                         consola.putc('\n');
                         serial.putc('\n');
+                        guardarHistorial(linea[0..len]);
                         terminada = true;
                         break;
                     },
@@ -652,16 +1236,20 @@ pub fn bucle() noreturn {
                             serial.putc(8);
                         }
                     },
+                    '\t' => autocompletar(),
+                    teclado.FLECHA_ARRIBA => flechaArriba(),
+                    teclado.FLECHA_ABAJO => flechaAbajo(),
+                    teclado.FLECHA_IZQ, teclado.FLECHA_DER, teclado.SUPRIMIR, teclado.INICIO, teclado.FIN => {},
                     teclado.CTRL_C => {
                         salida("^C\n");
                         len = 0;
                         terminada = true;
                         break;
                     },
-                    0x80...0x9F => {}, // códigos especiales y controles C1
                     else => {
-                        // acepta ASCII imprimible y Latin-1 (ñ, acentos, ¿¡…)
-                        if (len < linea.len and c >= 32 and c != 127) {
+                        // acepta ASCII imprimible y Latin-1 (ñ, acentos, ¿¡…);
+                        // el rango C1 (0x80-0x9F) se descarta: es de control
+                        if (len < linea.len and c >= 32 and c != 127 and (c < 0x80 or c >= 0xA0)) {
                             linea[len] = c;
                             len += 1;
                             consola.putc(c);

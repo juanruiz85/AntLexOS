@@ -177,6 +177,18 @@ pub fn build(b: *std.Build) void {
     paso_probar_alfs.dependOn(&probar_alfs.step);
 
     // ------------------------------------------------------------------
+    // Intérprete completo (Fase 3): historial, TAB, reloj, buscar, apagado
+    // ------------------------------------------------------------------
+    const probar_interp = b.addSystemCommand(&.{ "python3", "tools/probar_interprete.py" });
+    probar_interp.addArg(b.pathFromRoot("zig-out/antlexos.img"));
+    probar_interp.addArg(b.pathFromRoot("build/pruebas_interprete"));
+    probar_interp.addArg("--tiempo");
+    probar_interp.addArg("180");
+    probar_interp.step.dependOn(b.getInstallStep());
+    const paso_probar_interp = b.step("probar-interprete", "Sesión real por QMP: historial, TAB, reloj, buscar y apagado");
+    paso_probar_interp.dependOn(&probar_interp.step);
+
+    // ------------------------------------------------------------------
     // Regeneración de la fuente bitmap (manual, para reproducibilidad)
     // ------------------------------------------------------------------
     const genf = b.addSystemCommand(&.{ b.graph.zig_exe, "run", "tools/genfont.zig", "--" });

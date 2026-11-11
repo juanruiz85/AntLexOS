@@ -84,3 +84,41 @@ límite; tests host; GPL-3.0.
 
 El informe completo está en el historial de trabajo del proyecto; este
 registro resume veredicto y trazabilidad.
+
+## REV-FASE3 — 2026-11-11 (pre-v0.3.0)
+
+- **Alcance**: Fase 3 completa (reloj.zig nuevo, interprete.zig extendido
+  con historial/TAB/9 comandos, autoprueba.zig con eco de consola, tests.zig,
+  build.zig paso probar-interprete, tools/probar_interprete.py, docs).
+- **Veredicto**: **APTO CON OBSERVACIONES** → condición cumplida: H-1
+  (crítica) y el resto de hallazgos corregidos ANTES del tag v0.3.0;
+  suite completa re-ejecutada en verde (P-0044). El agente verificó
+  empíricamente (Zig 0.14.1, programas aislados) los hallazgos de
+  formateo/índice antes de reportarlos.
+- **Secretos**: NINGUNO en el repositorio (auditar.py PASA).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| H-1 | CRÍTICA | `reloj.zig`: `MESES[@min(f.mes,12)-1]` underflowea con mes 0 de un CMOS con batería agotada → pánico del kernel con `fecha` (reproducido) | ✅ Saneo en `leer()` (mes/día/hora a rangos válidos) + índice con `@min(@max(f.mes,1),12)` + prueba host de regresión (23.ª) |
+| H-2 | MEDIA | `lista`: búfer de 16 B insuficiente para "{d:>8} B {d:>3} blk" (≥19 B) → la columna de tamaño NO se imprimía NUNCA (bug heredado de v0.2.0, ningún arnés la cubría) | ✅ Búfer a 24 B + paso nuevo del arnés "lista muestra columna de tamano" |
+| H-3 | MEDIA | `probar_interprete.py`: `paso()` dejaba la referencia en el INICIO de la marca anterior → el paso de flecha-arriba re-encontraba la ocurrencia vieja (falso positivo garantizado) | ✅ Referencia pasa a `pos + len(marca)` (y en la marca inicial de consola) |
+| H-4 | MEDIA | Autocompletado por alias: completaba con el nombre canónico pese a teclear el alias → "date"+TAB producía "datcha" | ✅ La rama de alias completa con el propio alias |
+| H-5 | BAJA | `buscarRec`: `bufPrint(...) catch continue` saltaba también la comprobación de coincidencia y el subdirectorio; truncamientos sin aviso | ✅ Coincidencia comprobada antes de construir la ruta; salida "…/nombre" si la ruta no cabe; aviso "(límite de N resultados alcanzado)" |
+| H-6 | BAJA | Cada lectura del RTC deja la NMI enmascarada (bit 7 de 0x70) sin restaurar | ✅ Documentado en manual técnico §5.4 (kernel no usa NMI) |
+| H-7 | BAJA | `cargarLinea` redibujaba con retrocesos simples: en serie dejaba texto fantasma (0x08 no borra) y en consola podía dejar restos con líneas envueltas | ✅ Retroceso+espacio+retroceso en consola y serie (líneas envueltas: limitación conocida hasta la GUI de Fase 5) |
+| H-8 | BAJA | manual_tecnico.md decía "SLP_TYP=5" pero el código escribe SLP_EN (S5 de QEMU) | ✅ Manual corregido |
+| H-9 | BAJA | `renombrar`: si borrar() fallaba tras crear(), quedaban dos archivos sin informar | ✅ Mensaje explícito "…PERO no se pudo borrar el original" |
+| H-10 | INFO | Consumo del bump allocator por `pruebas`/`copiar`/`renombrar` (memoria filtrada hasta Fase 7) | ℹ️ Ya documentado como limitación; vigilar en máquinas de 32-64 MiB |
+
+### Puntos verificados correctos (resumen)
+
+Zeller sin desbordamientos (i32, @intCast acotado); deBcd (máx 165);
+esperarEstable acotado; invariante del historial (16 entradas, dedup,
+guards de flechas); autocompletado con guardas y slices síncronos;
+buscarRec sin aliasing entre niveles y PROFUNDIDAD_MAX=16 = límite real de
+ALFS; lidtq sobre 10 bytes = patrón canónico (sin alineación requerida);
+cmdPruebas con contadores que se resetean; cifras de docs verificadas
+contra el código (25 comandos, 12 autopruebas, 22→23 host, 21→22 pasos del
+arnés tras el paso nuevo); sin usos incorrectos de Zig 0.14.

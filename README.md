@@ -5,9 +5,9 @@
 - **Bootloaders 100% propios**: BIOS (MBR + stage2 en ensamblador) **y** UEFI (BOOTX64.EFI en Zig) — ni GRUB ni Limine
 - **Gráfico desde el primer instante**: el stage2 activa VBE 1024×768×32 antes de saltar al kernel
 - **Kernel en Zig** sin librería C ni runtime: GDT/IDT propias, PIC, PIT, teclado PS/2 (ES/US), framebuffer, consola gráfica
-- **IA embebida (LEX)**: red neuronal diminuta entrenada en build-time que solo sabe del propio sistema (Fase 4)
+- **IA embebida (AntLex)**: red neuronal diminuta entrenada en build-time que solo sabe del propio sistema (Fase 4)
 - **ALFS (AntLex File System)**: sistema de archivos propio con persistencia real (Fase 2)
-- **Escritorio dividido**: terminal a la izquierda, chat de LEX a la derecha (Fase 5)
+- **Escritorio dividido**: terminal a la izquierda, chat de AntLex a la derecha (Fase 5)
 
 ![Arranque](docs/img/arranque-splash.png)
 
@@ -46,9 +46,9 @@ zig build probar                  # arranca en QEMU sin interfaz y valida serial
 | 0 | — | Infraestructura, CI, documentación | ✅ |
 | 1 | v0.1.0 | Bootloader BIOS + modo gráfico VBE + kernel con consola y autopruebas | ✅ |
 | 1b | v0.1.1 | Bootloader UEFI propio (OVMF) | ✅ |
-| 2 | v0.2.0 | Sistema de archivos ALFS + driver ATA | ⏳ |
-| 3 | v0.3.0 | Intérprete de comandos en español | ⏳ |
-| 4 | v0.4.0 | IA embebida LEX (red neuronal) | ⏳ |
+| 2 | v0.2.0 | Sistema de archivos ALFS + driver ATA | ✅ |
+| 3 | v0.3.0 | Intérprete de comandos en español | ✅ |
+| 4 | v0.4.0 | IA embebida AntLex (red neuronal) | ⏳ |
 | 5 | v0.5.0 | Escritorio con ventanas, ratón y barra de tareas | ⏳ |
 | 6 | v1.0.0 | ISO, bundles portables con QEMU, releases automatizados | ⏳ |
 

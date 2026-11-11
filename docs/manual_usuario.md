@@ -1,10 +1,10 @@
-# Manual de usuario — AntLex OS v0.2.0
+# Manual de usuario — AntLex OS v0.3.0
 
 Bienvenido a **AntLex OS**, un sistema operativo experimental que arranca
 en modo gráfico desde el primer instante. Este manual cubre la versión
-**0.2.0** (Fase 2: sistema de archivos ALFS y primeros comandos). El
-intérprete completo llega en la Fase 3, y el escritorio con ventanas y la
-asistente LEX en las Fases 4-5.
+**0.3.0** (Fase 3: intérprete completo con historial, autocompletado y
+reloj real). El escritorio con ventanas y la asistente **AntLex** llegan en
+las Fases 4-5.
 
 ## 1. Requisitos
 
@@ -44,11 +44,14 @@ y arranca el PC desde el USB con BIOS legacy o UEFI. No instala nada: todo
 corre desde el medio. *Advertencia: proyecto experimental; pruébalo en
 hardware que no contenga datos importantes.*
 
-## 3. Usar la consola (v0.2.0)
+## 3. Usar la consola (v0.3.0)
 
-La consola ya tiene un intérprete real con comandos en español (y alias en
-inglés). El símbolo del sistema muestra el directorio actual:
+La consola tiene un intérprete real con **25 comandos** en español (y alias
+en inglés). El símbolo del sistema muestra el directorio actual:
 `antlex:/> ` (raíz) o `antlex:/ejemplos> ` (dentro de la carpeta).
+
+Consejos rápidos: **↑/↓** recorren el historial, **TAB** autocompleta
+comandos y nombres de archivo, **Ctrl+C** cancela la línea.
 
 ### 3.1 Comandos de archivos (ALFS)
 
@@ -63,18 +66,27 @@ inglés). El símbolo del sistema muestra el directorio actual:
 | `nuevodir` (`mkdir`) | crea un directorio | `nuevodir fotos` |
 | `borrar` (`rm`) | borra archivo o directorio vacío | `borrar nota.txt` |
 | `copiar` (`cp`) | copia un archivo | `copiar nota.txt copia.txt` |
+| `renombrar` (`mv`) | cambia el nombre de un archivo | `renombrar nota.txt lista.txt` |
+| `buscar` (`find`) | busca archivos por nombre (recursivo) | `buscar nota` · `buscar txt /ejemplos` |
 | `espacio` (`df`) | espacio libre del volumen | `espacio` |
 | `sincronizar` (`sync`) | guarda los cambios en el disco | `sincronizar` |
 
-### 3.2 Otros comandos
+### 3.2 Comandos del sistema
 
 | Comando (alias) | Qué hace |
 |---|---|
 | `ayuda` (`help`) | lista todos los comandos; `ayuda <cmd>` detalla uno |
-| `ver` (`version`) | versión, memoria, teclado, disco y modo de arranque |
+| `ver` (`version`) | versión, memoria, teclado, disco, reloj y modo de arranque |
+| `sistema` (`sysinfo`) | resumen gráfico con logo, CPU, memoria, pantalla, disco y encendido |
+| `fecha` (`date`) | fecha del reloj de tiempo real, en texto largo e ISO (UTC) |
+| `hora` (`time`) | hora actual (UTC) y tiempo de encendido |
+| `historia` (`history`) | historial numerado de comandos (también con ↑/↓) |
+| `pruebas` (`test`) | ejecuta las 12 autopruebas del sistema y las muestra en pantalla |
 | `eco` (`echo`) | repite el texto que escribas |
 | `limpiar` (`cls`) | borra la pantalla |
 | `teclado es` / `teclado us` | cambia la distribución del teclado |
+| `apagar` (`shutdown`) | sincroniza y apaga (en QEMU la ventana se cierra sola) |
+| `reiniciar` (`reboot`) | sincroniza y reinicia la máquina |
 
 ### 3.3 Persistencia: importante
 
@@ -104,7 +116,8 @@ verifica el archivo).
    prepara el modo largo de 64 bits.
 3. El **kernel** inicializa sus tablas (GDT/IDT), el temporizador, el
    teclado y la pantalla, detecta el **disco ATA**, monta el volumen
-   **ALFS**, ejecuta **11 autopruebas** y muestra el splash.
+   **ALFS**, ejecuta **12 autopruebas** (incluido el reloj) y muestra el
+   splash.
 4. Si alguna autoprueba fallara, verías `[FALLA]` en el diagnóstico serie
    y `ANTLEX BOOT CON ERRORES` en vez de `ANTLEX BOOT OK`.
 
@@ -120,12 +133,14 @@ verifica el archivo).
 | Cambios perdidos tras reiniciar | Falta `sincronizar` | Sincroniza antes de apagar |
 | "no hay bloques contiguos" | Fragmentación | Borra archivos que no necesites y vuelve a intentar |
 
-## 6. Atajos de teclado (v0.2.0)
+## 6. Atajos de teclado (v0.3.0)
 
 | Tecla | Efecto |
 |---|---|
 | INTRO | Enviar la línea |
 | Retroceso | Borrar carácter |
+| **↑ / ↓** | Historial de comandos (conserva la línea en edición) |
+| **TAB** | Autocompletar comando o nombre de archivo (lista opciones si hay varias) |
 | Ctrl+C | Cancelar la línea actual |
 | Mayús/Bloq Mayús | Mayúsculas (Bloq Mayús solo afecta letras) |
 | ´ ` ¨ | Teclas muertas (siguiente vocal se acentúa) |
@@ -135,6 +150,10 @@ verifica el archivo).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v0.3.0**: intérprete completo — historial con flechas, autocompletado
+  con TAB, reloj de tiempo real (`fecha`/`hora`), `sistema`, `buscar`,
+  `renombrar`, `pruebas` bajo demanda y `apagar`/`reiniciar` reales. La IA
+  del sistema se llamará **AntLex** (Fase 4).
 - **v0.2.0**: sistema de archivos propio **ALFS** con persistencia real,
   driver ATA, 16 comandos (archivos, ayuda, teclado…), protocolo de
   arranque v2 y volumen inicial con manuales dentro del propio sistema

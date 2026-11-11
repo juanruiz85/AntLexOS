@@ -7,30 +7,49 @@ actualiza al final de cada fase.
 ## Qué es
 
 Sistema operativo experimental **desde cero** en **Zig 0.14.1** para
-**x86_64**, con IA embebida (LEX), GUI desde el arranque y sistema de
-archivos propio (ALFS). Nada de GRUB/Limine/Linux: bootloader propio en
-NASM (BIOS; UEFI en camino). Repo público GPL-3.0:
-`juanruiz85/AntLexOS`. Commits bajo el usuario `juanruiz85`.
+**x86_64**, con IA embebida (**AntLex**, misma identidad que el sistema),
+GUI desde el arranque y sistema de archivos propio (ALFS). Nada de
+GRUB/Limine/Linux: bootloader propio en NASM (BIOS) y Zig (UEFI). Repo
+público GPL-3.0: `juanruiz85/AntLexOS`. Commits bajo el usuario
+`juanruiz85`.
 
 Decisiones tomadas con el propietario (2026-11-11):
-nombre **AntLex OS**; IA **LEX**; FS **ALFS**; arranque **BIOS+UEFI**;
-teclado **ES conmutable**; GUI **escritorio dividido terminal|LEX + extras
-(explorador, editor)**; comandos **en español con alias en inglés**;
-licencia **GPL-3.0**; **un tag+release por fase** (v0.1.0 → v1.0.0).
+nombre **AntLex OS**; IA **AntLex** (renombrada desde "LEX" a petición del
+propietario: la identidad de la IA es la del propio sistema, embebida en
+él); FS **ALFS**; arranque **BIOS+UEFI**; teclado **ES conmutable**; GUI
+**escritorio dividido terminal|AntLex + extras (explorador, editor)**;
+comandos **en español con alias en inglés**; licencia **GPL-3.0**;
+**un tag+release por fase** (v0.1.0 → v1.0.0).
 
-## Estado actual (v0.2.0, Fase 2 terminada)
+## Estado actual (v0.3.0, Fase 3 terminada)
 
 ✅ Fase 1 (v0.1.0): bootloader BIOS completo + kernel con consola gráfica.
 ✅ Fase 1b (v0.1.1): bootloader UEFI propio (BOOTX64.EFI + FAT16 con mkfat).
-✅ Fase 2 (v0.2.0): **sistema de archivos ALFS** (formato propio, extensiones
-contiguas, tabla de 256 entradas) con **persistencia real** (driver ATA PIO,
-sincronizar escribe el volumen y sobrevive a reinicios — verificado por
-arnés automático en BIOS y UEFI), intérprete con 16 comandos ES+alias EN
-(salida espejada por serie = consola remota), protocolo boot_info v2,
-autopruebas 11/11, pruebas host 17/17 (incluye corrupción de disco) y
-auditoría REV-FASE2 corregida al completo.
+✅ Fase 2 (v0.2.0): sistema de archivos **ALFS** con persistencia real
+   (driver ATA PIO, sincronizar escribe el volumen y sobrevive a
+   reinicios — verificado por arnés en BIOS y UEFI) e intérprete base.
+✅ Fase 3 (v0.3.0): **intérprete completo** — 25 comandos ES+alias EN,
+   historial con flechas, autocompletado TAB (comandos y rutas), reloj RTC
+   (`fecha`/`hora`/Zeller con pruebas), `sistema` (sysinfo), `buscar`
+   recursivo, `renombrar`, `pruebas` bajo demanda (12/12 con eco en
+   pantalla), `apagar`/`reiniciar` reales (ACPI verificado: QEMU cierra
+   solo). Arnés `probar_interprete.py` con 22 pasos. Pruebas host 23/23.
 
-Siguiente: **Fase 3 (v0.3.0) intérprete completo** (ver `TODO.md`).
+Siguiente: **Fase 4 (v0.4.0) IA embebida AntLex** (ver `TODO.md`).
+
+Lecciones Fase 3 para quien continúe:
+1. `switch` de Zig no admite solapamiento entre un caso puntual y un
+   rango: las flechas (0x80-0x83) y el rango C1 0x80-0x9F no pueden
+   coexistir; enumera los códigos especiales explícitamente.
+2. El filtro de imprimibles debe aceptar Latin-1 ≥ 0xA0 (ñ, acentos, ¿¡)
+   pero descartar C1 (0x80-0x9F): `(c < 0x80 or c >= 0xA0)`.
+3. Las funciones de comando son `fn ([]const u8) void`: para `apagar`
+   (que no vuelve) declara void con bucle `hlt` final — un fn `noreturn`
+   no coercionaba bien en la tabla.
+4. Un slice de un búfer local solo vive durante la llamada: `salida(bufPrint(&buf,…))`
+   es válido, devolverlo no.
+5. QMP `send-key` acepta combos (`["ctrl","c"]`) — ideal para probar
+   cancelaciones.
 
 Lecciones Fase 2 para quien continúe (además de las de Fase 1):
 1. PIO «READ/WRITE SECTORS» pide DRQ por CADA sector: nunca hagas `rep
@@ -82,13 +101,15 @@ src/kernel/ata.zig      driver ATA PIO LBA28 (DRQ por sector, timeouts)
 src/kernel/alfs_formato.zig  formato ALFS en disco (superbloque/entradas/bitmap)
 src/kernel/alfs_volumen.zig  operaciones de Volumen (capa pura, sin E/S)
 src/kernel/alfs.zig     montaje por ATA + sincronizar (espejo RAM)
-src/kernel/interprete.zig  16 comandos ES+alias, salida espejada por serie
+src/kernel/interprete.zig  25 comandos ES+alias, historial, TAB, salida serie
+src/kernel/reloj.zig    RTC del CMOS (BCD, 12/24 h, Zeller, formatos)
 src/kernel/{gdt,pic,pit,mem,serial,x86,version,autoprueba}.zig
 tools/mkimage.zig     ELF→img (cabecera ALKR con crc32, particiones)
 tools/mkalfs.zig      volumen ALFS inicial desde fsroot/ (mismo módulo Volumen)
 tools/genfont.zig     unifont.hex → fuente_datos.zig (subconjunto commiteado)
 tools/probar_boot.py  QEMU headless: serial + QMP screendump + validación píxeles
 tools/probar_alfs.py  persistencia: teclado QMP → sync → REINICIO → verificar
+tools/probar_interprete.py  sesión real del intérprete (22 pasos, apagado ACPI)
 tools/auditar.py      secretos/TODO/versión (CI lo exige)
 tools/release.sh      CLI: ./tools/release.sh 0.2.0 "resumen" → tag → CI publica
 tools/inspeccionar.py volcado de memoria física vía QMP (depuración)
@@ -100,10 +121,11 @@ fsroot/               contenido inicial del volumen ALFS (manuales dentro)
 ```bash
 # entorno del sandbox (si aplica): source /home/z/my-project/scripts/entorno.sh
 zig build -Drelease=true      # imagen en zig-out/antlexos.img
-zig build test                # unitarias host (17)
+zig build test                # unitarias host (23)
 zig build probar              # arranque verificado en QEMU (BIOS)
 zig build probar-uefi         # arranque verificado con OVMF
 zig build probar-alfs         # persistencia real: escribe, REINICIA y verifica
+zig build probar-interprete   # sesión real: historial, TAB, reloj, apagado ACPI
 python3 tools/auditar.py
 ./tools/release.sh X.Y.Z "resumen de fase"   # publica (solo árbol limpio)
 ```
@@ -165,7 +187,7 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
    (FAT16) + prueba OVMF en CI.
 2. **Fase 2**: `ata.zig` (PIO LBA28) + `alfs.zig` (bitmap+extensiones, 256
    entradas, jerárquico) + `tools/mkalfs.zig` desde `fsroot/`.
-3. **Fase 3**: `interprete.zig` (~24 comandos ES+alias, historial, TAB).
+3. **Fase 3**: `interprete.zig` (~25 comandos ES+alias, historial, TAB).
 4. **Fase 4**: `tools/entrenar_lex.zig` → pesos embebidos; `src/kernel/lex/`.
 5. **Fase 5**: ratón + escritorio dividido + ventanas (explorador, editor).
 6. **Fase 6**: `tools/mkiso.zig` (ISO9660+El Torito dual) + portables con

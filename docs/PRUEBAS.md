@@ -70,10 +70,20 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0035 | 2026-11-11 | 0.2.0 | Auditoría `auditar.py` + revisión de seguridad REV-FASE2 | ❌→✅ | Agente revisor: veredicto NO APTO con 3 hallazgos críticos reproducidos (pánico del kernel con volumen corrupto); corregidos H-1..H-18 (ver docs/revision_seguridad.md) |
 | P-0036 | 2026-11-11 | 0.2.0 | **Suite completa tras correcciones REV-FASE2** | ✅ | Host 17/17 (incluye prueba nueva de entradas corruptas), BIOS 11/11 + capturas, UEFI 11/11, persistencia BIOS y UEFI PASA |
 
+| P-0037 | 2026-11-11 | 0.3.0-dev | Compilación con Fase 3 (reloj + intérprete extendido) | ❌ | Error de tipos en reloj.zig (literal 2000 en u8) — corregido con @as(u16,…) |
+| P-0038 | 2026-11-11 | 0.3.0-dev | Unitarias host (`zig build test`) | ✅ | 22/22: 17 previas + 5 de reloj (Zeller ×3, formatos) |
+| P-0039 | 2026-11-11 | 0.3.0-dev | Arranque BIOS con autoprueba nueva `reloj_rtc` | ✅ | 12/12 (antes 11/11); fecha RTC correcta 2026-11-11 |
+| P-0040 | 2026-11-11 | 0.3.0 | **Arnés del intérprete** (`probar_interprete.py`) | ✅ | 21/21 pasos: eco, ver+reloj, fecha ISO, hora, sistema, historia numerada, flecha ↑, TAB comando/ruta/múltiple, Ctrl+C, escribir/renombrar/buscar/mostrar/borrar, pruebas 12/12 y APAGADO real por ACPI (QEMU cierra solo, código 0) |
+| P-0041 | 2026-11-11 | 0.3.0 | Regresión arranque UEFI (OVMF) | ✅ | 12/12 autopruebas por UEFI, GOP 1280x800 |
+| P-0042 | 2026-11-11 | 0.3.0 | Regresión persistencia ALFS (BIOS y UEFI) | ✅ | Ciclo escribir→sincronizar→REINICIO→verificar en ambos modos de arranque |
+
+| P-0043 | 2026-11-11 | 0.3.0 | Auditoría `auditar.py` + revisión de seguridad REV-FASE3 | ❌→✅ | Agente revisor: APTO CON OBSERVACIONES — 1 hallazgo crítico (pánico por mes CMOS 0, reproducido) + 3 medios (columna de tamaño de `lista` nunca impresa —bug de v0.2.0—, falso positivo del paso flecha-arriba del arnés, autocompletado por alias con basura) + 6 menores; TODO corregido antes del tag (ver docs/revision_seguridad.md) |
+| P-0044 | 2026-11-11 | 0.3.0 | **Suite completa tras correcciones REV-FASE3** | ✅ | Host 23/23 (nueva prueba de regresión del saneo CMOS), BIOS 12/12 + capturas, UEFI 12/12, persistencia ALFS en BIOS y UEFI, arnés del intérprete 22 pasos (nueva comprobación de la columna de tamaño), apagado ACPI verificado |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
   bootloader: se conservan a propósito como historial honesto del
   desarrollo (el proyecto valora el registro detallado).
-- P-0015 quedará automatizada cuando exista inyección de teclas por QMP
-  (Fase 3).
+- P-0015 quedó automatizada en la Fase 3: el arnés `probar_interprete.py`
+  ejerce el teclado real por QMP (incluido Ctrl+C y TAB) en cada ejecución.

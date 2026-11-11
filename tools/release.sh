@@ -54,8 +54,16 @@ else:
 EOF
 
 git add -A
-git commit -m "v${VER}: ${RESUMEN}"
-git tag -a "v${VER}" -m "AntLex OS v${VER} — ${RESUMEN}"
+if git diff --cached --quiet; then
+    echo "VERSION y CHANGELOG ya estaban preparados: sin commit extra"
+else
+    git commit -m "v${VER}: ${RESUMEN}"
+fi
+if git rev-parse -q --verify "refs/tags/v${VER}" >/dev/null; then
+    echo "el tag v${VER} ya existía; no se duplica"
+else
+    git tag -a "v${VER}" -m "AntLex OS v${VER} — ${RESUMEN}"
+fi
 git push origin main --tags
 
 echo "== v${VER} publicada: GitHub Actions está construyendo el release =="
