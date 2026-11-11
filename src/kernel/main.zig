@@ -45,6 +45,9 @@ export fn kentry() linksection(".text.boot") callconv(.Naked) noreturn {
 }
 
 export fn kmain(boot_ptr: usize) noreturn {
+    // lo primero: sin interrupciones hasta tener IDT+PIC propios (en UEFI el
+    // firmware puede dejar IF=1 y su temporizador activo)
+    x86.cli();
     serial.init();
 
     const bi = bi_mod.desde(boot_ptr) orelse {

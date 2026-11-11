@@ -2,8 +2,8 @@
 //! Construye antlexos.img a partir del kernel ELF, stage1 (MBR) y stage2.
 //!
 //! Uso:
-//!   mkimage.zig <kernel.elf> <stage1.bin> <stage2.bin> <salida.img>
-//!               <kernel_off> <fat_off> <alfs_off> <disk_size>
+//!   mkimage.zig <kernel.elf> <stage1.bin> <stage2.bin> <fat16.bin> <salida.img>
+//!               <kernel_off> <fat_off> <fat_size> <alfs_off> <disk_size>
 //!               <kernel_max> <kernel_load_addr>
 //!
 //! Layout del disco (offsets en bytes, ver layout.zig):
@@ -51,26 +51,30 @@ pub fn main() !void {
     const arena = arena_state.allocator();
 
     const args = try std.process.argsAlloc(arena);
-    if (args.len != 11) {
-        std.debug.print("uso: mkimage.zig <kernel.elf> <stage1.bin> <stage2.bin> <salida.img> <kernel_off> <fat_off> <alfs_off> <disk_size> <kernel_max> <kernel_load_addr>\n", .{});
+    if (args.len != 13) {
+        std.debug.print("uso: mkimage.zig <kernel.elf> <stage1.bin> <stage2.bin> <fat16.bin> <salida.img> <kernel_off> <fat_off> <fat_size> <alfs_off> <disk_size> <kernel_max> <kernel_load_addr>\n", .{});
         return error.Uso;
     }
 
     const ruta_elf = args[1];
     const ruta_s1 = args[2];
     const ruta_s2 = args[3];
-    const ruta_out = args[4];
-    const kernel_off = try std.fmt.parseInt(u64, args[5], 10);
-    const fat_off = try std.fmt.parseInt(u64, args[6], 10);
-    const alfs_off = try std.fmt.parseInt(u64, args[7], 10);
-    const disk_size = try std.fmt.parseInt(u64, args[8], 10);
-    const kernel_max = try std.fmt.parseInt(u64, args[9], 10);
-    const load_addr = try std.fmt.parseInt(u64, args[10], 10);
+    const ruta_fat = args[4];
+    const ruta_out = args[5];
+    const kernel_off = try std.fmt.parseInt(u64, args[6], 10);
+    const fat_off = try std.fmt.parseInt(u64, args[7], 10);
+    const fat_size = try std.fmt.parseInt(u64, args[8], 10);
+    const alfs_off = try std.fmt.parseInt(u64, args[9], 10);
+    const disk_size = try std.fmt.parseInt(u64, args[10], 10);
+    const kernel_max = try std.fmt.parseInt(u64, args[11], 10);
+    const load_addr = try std.fmt.parseInt(u64, args[12], 10);
 
     // ---------------- leer el ELF del kernel ----------------
     const elf = try std.fs.cwd().readFileAlloc(arena, ruta_elf, 32 * 1024 * 1024);
     if (elf.len < @sizeOf(Ehdr)) return error.ElfCorto;
-    const ehdr: *const Ehdr = @alignCast(@ptrCast(elf.ptr));
+    var buf_ehdr: [@sizeOf(Ehdr)]u8 align(8) = undefined;
+    @memcpy(&buf_ehdr, elf[0..@sizeOf(Ehdr)]);
+    const ehdr: *const Ehdr = @ptrCast(&buf_ehdr);
     if (!std.mem.eql(u8, ehdr.ident[0..4], "\x7fELF")) return error.ElfInvalido;
     if (ehdr.ident[4] != 2) return error.ElfNo64; // ELF64
     if (ehdr.ident[5] != 1) return error.ElfNoLE; // little-endian
@@ -86,9 +90,11 @@ pub fn main() !void {
     var fin_memoria: u64 = load_addr; // fin incluyendo .bss
     var bss_off: u64 = 0;
     var bss_size: u64 = 0;
+    var buf_ph: [@sizeOf(Phdr)]u8 align(8) = undefined;
     var i: usize = 0;
     while (i < ehdr.phnum) : (i += 1) {
-        const ph: *const Phdr = @alignCast(@ptrCast(ph_tabla.ptr + i * @sizeOf(Phdr)));
+        @memcpy(&buf_ph, ph_tabla[i * @sizeOf(Phdr) ..][0..@sizeOf(Phdr)]);
+        const ph: *const Phdr = @ptrCast(&buf_ph);
         if (ph.tipo != PT_LOAD) continue;
         if (ph.offset > elf.len or ph.filesz > elf.len - ph.offset) return error.ElfSegmentoFuera;
         if (ph.vaddr < load_addr) return error.VaddrBajo;
@@ -130,6 +136,12 @@ pub fn main() !void {
     @memcpy(disco[0..512], s1);
     @memcpy(disco[512 .. 512 + s2.len], s2);
 
+    // partición 1: FAT16 de arranque UEFI
+    const fat = try std.fs.cwd().readFileAlloc(arena, ruta_fat, 64 * 1024 * 1024);
+    if (fat.len == 0 or fat.len > fat_size) return error.Fat16Invalida;
+    if (fat[510] != 0x55 or fat[511] != 0xAA) return error.Fat16SinFirma;
+    @memcpy(disco[@intCast(fat_off)..][0..fat.len], fat);
+
     // tabla de particiones (offset 446): P1 FAT16 (arrancable), P2 kernel, P3 ALFS
     const sect = disk_size / 512;
     escribirParticion(disco, 0, true, 0x06, fat_off / 512, (kernel_off - fat_off) / 512);
@@ -154,7 +166,8 @@ pub fn main() !void {
     // copiar los PT_LOAD al binario plano
     i = 0;
     while (i < ehdr.phnum) : (i += 1) {
-        const ph: *const Phdr = @alignCast(@ptrCast(ph_tabla.ptr + i * @sizeOf(Phdr)));
+        @memcpy(&buf_ph, ph_tabla[i * @sizeOf(Phdr) ..][0..@sizeOf(Phdr)]);
+        const ph: *const Phdr = @ptrCast(&buf_ph);
         if (ph.tipo != PT_LOAD) continue;
         const dst: usize = @intCast(kbase + 512 + (ph.vaddr - load_addr));
         const src: usize = @intCast(ph.offset);

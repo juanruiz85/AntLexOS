@@ -2,9 +2,17 @@
 
 const boot_info = @import("boot_info.zig");
 
-/// Color 0x00RRGGBB (el framebuffer de QEMU en little-endian lo muestra tal cual).
+/// Color 0x00RRGGBB. El framebuffer de QEMU/BIOS (VBE) es BGR en memoria,
+/// que coincide con este valor little-endian; si el firmware UEFI entrega
+/// GOP con orden RGB se activa el intercambio en init().
 pub fn rgb(r: u8, g: u8, b: u8) u32 {
     return (@as(u32, r) << 16) | (@as(u32, g) << 8) | b;
+}
+
+inline fn ajustar(color: u32) u32 {
+    if (!intercambio_rgb) return color;
+    // intercambiar canales R y B (GOP con orden RGB)
+    return (color & 0xFF00FF00) | ((color & 0x000000FF) << 16) | ((color & 0x00FF0000) >> 16);
 }
 
 pub const ANCHO_MIN = 640;
@@ -15,6 +23,7 @@ var ancho: u32 = 0;
 var alto: u32 = 0;
 var paso: u32 = 0; // bytes por línea
 var bpp: u32 = 0;
+var intercambio_rgb: bool = false; // GOP con orden RGB en vez de BGR (UEFI)
 
 pub const PantallaError = error{ SinFramebuffer, ModoInvalido };
 
@@ -30,6 +39,7 @@ pub fn init(bi: *const boot_info.BootInfo) PantallaError!void {
     alto = bi.fb_h;
     paso = bi.fb_pitch;
     bpp = bi.fb_bpp;
+    intercambio_rgb = (bi.reserved & 1) != 0; // bit0: GOP en orden RGB
 }
 
 pub fn anchoPix() u32 {
@@ -50,7 +60,7 @@ pub fn direccion() usize {
 
 pub inline fn pixel(x: u32, y: u32, color: u32) void {
     if (x >= ancho or y >= alto) return;
-    fb[@as(usize, y) * (paso / 4) + x] = color;
+    fb[@as(usize, y) * (paso / 4) + x] = ajustar(color);
 }
 
 pub fn rect(x0: u32, y0: u32, an: u32, al: u32, color: u32) void {
@@ -62,7 +72,7 @@ pub fn rect(x0: u32, y0: u32, an: u32, al: u32, color: u32) void {
     while (y < y_fin) : (y += 1) {
         const fila: [*]volatile u32 = fb + @as(usize, y) * (paso / 4);
         var x = x0;
-        while (x < x_fin) : (x += 1) fila[x] = color;
+        while (x < x_fin) : (x += 1) fila[x] = ajustar(color);
     }
 }
 

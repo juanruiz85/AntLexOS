@@ -20,8 +20,9 @@ jobs:
 
       - name: Zig 0.14.1 (versión fijada)
         run: |
-          curl -sL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ
-          echo "$PWD/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/zigtool"
+          curl -sL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ -C "$RUNNER_TEMP/zigtool"
+          echo "$RUNNER_TEMP/zigtool/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
 
       - name: Formato (zig fmt --check)
         run: zig fmt --check .
@@ -39,6 +40,13 @@ jobs:
           OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
         run: python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas --tiempo 60
 
+      - name: Prueba de arranque UEFI en QEMU+OVMF
+        env:
+          TC: /noexiste
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        run: python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas_uefi --uefi --tiempo 150
+
       - name: Auditoría de seguridad y calidad
         run: python3 tools/auditar.py
 
@@ -48,6 +56,9 @@ jobs:
           name: antlexos-${{ github.sha }}
           path: |
             zig-out/antlexos.img
+            zig-out/BOOTX64.EFI
             build/pruebas/*.png
             build/pruebas/serial.log
+            build/pruebas_uefi/*.png
+            build/pruebas_uefi/serial.log
           if-no-files-found: error

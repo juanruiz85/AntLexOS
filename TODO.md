@@ -5,12 +5,12 @@ entrada en `CHANGELOG.md`, sus pruebas registradas en `docs/PRUEBAS.md` y su
 auditoría en `docs/revision_seguridad.md`.
 
 ## Fase 1b (v0.1.1) — Bootloader UEFI propio
-- [ ] `src/boot/efi/main.zig`: aplicación UEFI en Zig (std.os.uefi)
-- [ ] Leer kernel y ALFS por BlockIO en los offsets fijos (9 MiB / 13 MiB)
-- [ ] GOP para el framebuffer (32 bpp)
-- [ ] Mapa de memoria → boot_info (modo UEFI) y salto al kernel
-- [ ] `tools/mkfat.zig`: partición FAT16 con `/EFI/BOOT/BOOTX64.EFI`
-- [ ] Prueba de arranque UEFI en QEMU con OVMF (job de CI)
+- [x] `src/boot/efi/main.zig`: aplicación UEFI en Zig (std.os.uefi)
+- [x] Leer kernel por BlockIO en el offset fijo (9 MiB); ALFS se añadirá en la Fase 2
+- [x] GOP para el framebuffer (32 bpp, con detección RGB/BGR)
+- [x] Mapa de memoria → boot_info (modo UEFI, regiones fusionadas) y salto al kernel
+- [x] `tools/mkfat.zig`: partición FAT16 con `/EFI/BOOT/BOOTX64.EFI`
+- [x] Prueba de arranque UEFI en QEMU con OVMF (local y CI)
 
 ## Fase 2 (v0.2.0) — Sistema de archivos ALFS
 - [ ] `src/kernel/ata.zig`: driver ATA PIO (LBA28, polling)

@@ -137,11 +137,12 @@ def main():
         if os.path.isdir(fw):
             cmd += ["-L", fw]
     if args.uefi:
-        # copiar VARS para no ensuciar la plantilla
-        vars_copia = os.path.join(args.salida, "OVMF_VARS.fd")
+        # OVMF dividido (CODE + VARS) se monta como dos pflash que suman 4 MiB
         import shutil
+        vars_copia = os.path.join(args.salida, "OVMF_VARS.fd")
         shutil.copyfile(OVMF_VARS, vars_copia)
-        cmd += ["-bios", OVMF_CODE]
+        cmd += ["-drive", f"if=pflash,format=raw,file={OVMF_CODE},readonly=on"]
+        cmd += ["-drive", f"if=pflash,format=raw,file={vars_copia}"]
     cmd += ["-hda", args.imagen]
     if args.uefi:
         log(f"modo UEFI: {OVMF_CODE}")

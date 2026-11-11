@@ -1,3 +1,24 @@
+## [v0.1.1] - 2026-11-11
+
+### Fase 1b — Bootloader UEFI propio
+
+- **BOOTX64.EFI (Zig, std.os.uefi)**: localiza el medio AntLex por BlockIo
+  (marca "ANTLEX" en el MBR), lee la partición del kernel por bloques
+  directamente a 1 MiB, obtiene el framebuffer por GOP (con detección del
+  orden RGB/BGR), convierte el mapa de memoria EFI al formato E820 de
+  AntLex (fusionando regiones adyacentes) y salta al kernel tras
+  ExitBootServices con reintentos — sin usar la consola entre el mapa
+  final y el salto (invalidaría la clave).
+- **tools/mkfat.zig**: partición FAT16 (512 B/sector de clúster) con
+  /EFI/BOOT/BOOTX64.EFI y /LEEME.txt, generada por código propio.
+- **Kernel**: `cli()` inmediato al entrar (el firmware UEFI deja
+  interrupciones activas) y recarga de CS con far-return en `gdt.init`
+  (el selector heredado del firmware deja de ser válido); pantalla
+  soporta el orden RGB deGOP con intercambio de canales.
+- **CI**: se extrae Zig fuera del workspace (la auditoría daba falsos
+  positivos sobre libstd) y se añade la prueba de arranque UEFI con OVMF
+  en CI y en `release.yml`.
+
 # Changelog — AntLex OS
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-1.1.0/);

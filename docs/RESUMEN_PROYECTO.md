@@ -25,15 +25,29 @@ licencia **GPL-3.0**; **un tag+release por fase** (v0.1.0 → v1.0.0).
 ES-Us/framebuffer/consola/splash/autopruebas 8/8. ✅ Build reproducible
 (zig + nasm; mkimage/genfont/probar_boot/auditar/release). ✅ CI + release
 automático por tag. ✅ Auditoría REV-FASE1 corregida al completo.
-✅ Documentación completa de la fase.
+✅ Documentación completa de la fase. ✅ **Fase 1b (v0.1.1): bootloader
+UEFI propio** (BOOTX64.EFI + FAT16 con mkfat) arrancando en OVMF con el
+mismo kernel e imagen.
 
-Siguiente: **Fase 1b (v0.1.1) bootloader UEFI**, luego Fase 2 ALFS (ver
-`TODO.md`).
+Siguiente: **Fase 2 (v0.2.0) ALFS + ATA** (ver `TODO.md`).
+
+Lecciones UEFI para quien continúe:
+1. OVMF_4M viene PARTIDO (CODE 3.5M + VARS 0.5M): se monta como DOS
+   pflash, no con -bios.
+2. Ninguna llamada a boot services (¡ni printf por ConOut!) entre el
+   getMemoryMap final y exitBootServices: invalidan la clave.
+3. El reintento de EBS debe pedir el mapa con la CAPACIDAD del búfer
+   (tam viejo + margen), no con el tamaño del mapa anterior.
+4. OVMF entra a la app con IF=1: el kernel hace cli() de inmediato.
+5. El CS heredado de OVMF muere al sustituir la GDT: far-return a 0x18
+   en gdt.init ANTES de cualquier iretq.
 
 ## Mapa del código
 
 ```
 layout.zig            ← OFFSETS DEL DISCO: fuente única de verdad (¡leer primero!)
+src/boot/efi/main.zig bootloader UEFI (std.os.uefi, BlockIo+GOP+EBS con reintentos)
+tools/mkfat.zig       partición FAT16 de arranque EFI (código propio)
 linker.ld             kernel en 0x100000, .text.boot primero
 src/boot/stage1.asm   MBR 512 B (marca "ANTLEX" en offset 3)
 src/boot/stage2.asm   cargador completo; -D CD=1 = variante ISO (El Torito)

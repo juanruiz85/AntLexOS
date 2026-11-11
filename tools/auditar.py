@@ -25,7 +25,16 @@ PATRONES_SECRETO = [
 
 MARCADORES = re.compile(r"\b(TODO|FIXME|XXX)\b")
 
-IGNORAR_DIRS = {".git", ".zig-cache", "zig-out", "build", "toolchain", "node_modules"}
+IGNORAR_DIRS = {".git", ".zig-cache", "zig-out", "build", "toolchain", "node_modules", "dist"}
+
+
+def es_ignorada(nombre_dir):
+    if nombre_dir in IGNORAR_DIRS:
+        return True
+    # toolchains de zig extraídos dentro del workspace (p. ej. por CI antigua)
+    if nombre_dir.startswith("zig-x86_64") or nombre_dir.startswith("zig-aarch64"):
+        return True
+    return False
 EXTENSIONES = {".zig", ".asm", ".py", ".sh", ".yml", ".yaml", ".md", ".txt", ".zon", ".ld"}
 
 problemas = []
@@ -33,7 +42,7 @@ problemas = []
 
 def escanear():
     for dirpath, dirnames, filenames in os.walk(RAIZ):
-        dirnames[:] = [d for d in dirnames if d not in IGNORAR_DIRS]
+        dirnames[:] = [d for d in dirnames if not es_ignorada(d)]
         for nombre in filenames:
             ruta = os.path.join(dirpath, nombre)
             ext = os.path.splitext(nombre)[1]

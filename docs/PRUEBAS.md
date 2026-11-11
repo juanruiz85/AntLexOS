@@ -41,6 +41,15 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0014 | 2026-11-11 | 0.1.0 | Re-verificación tras correcciones de seguridad | ✅ | P-0009/P-0011 re-ejecutados: TODO PASA de nuevo |
 | P-0015 | 2026-11-11 | 0.1.0 | Interacción teclado (eco de teclas) | ⚠️ | Verificada manualmente en QEMU con teclado ES (ñ, acentos, retroceso); no automatizada aún |
 
+| P-0016 | 2026-11-11 | 0.1.1-dev | Arranque UEFI (OVMF pflash dual) | ❌ | OVMF_CODE_4M no va con -bios (partes 3.5M+0.5M): montaje pflash dual — corregido |
+| P-0017 | 2026-11-11 | 0.1.1-dev | Bootloader EFI en OVMF | ❌ | exitBootServices=INVALID_PARAMETER: allocatePages tras getMemoryMap invalidaba la clave — reordenado |
+| P-0018 | 2026-11-11 | 0.1.11-dev | Reintento de EBS | ❌ | Reintento usaba tamaño de mapa viejo (BUFFER_TOO_SMALL eterno) — corregido con capacidad real |
+| P-0019 | 2026-11-11 | 0.1.1-dev | Kernel por UEFI hasta consola | ❌ | OVMF dejaba IF=1 y CS heredado inválido tras lgdt — cli() inicial + recarga de CS — corregido |
+| P-0020 | 2026-11-11 | 0.1.1 | **Arranque UEFI completo** (`probar_boot.py --uefi`, OVMF 4M) | ✅ | Bootloader EFI + kernel 8/8 autopruebas + BOOT OK por UEFI; GOP 1280x800 BGR |
+| P-0021 | 2026-11-11 | 0.1.1 | Regresión BIOS tras cambios UEFI | ✅ | v0.1.1 sigue arrancando por BIOS (mismo kernel, dos rutas) |
+| P-0022 | 2026-11-11 | 0.1.0 | CI GitHub (v0.1.0) | ⚠️ | Build+tests+arranque BIOS PASARON en runner; auditoría falló por falsos positivos del toolchain zig dentro del workspace — corregido en v0.1.1 (extracción a $RUNNER_TEMP) |
+| P-0023 | 2026-11-11 | 0.1.0 | Release v0.1.0 en GitHub | ✅ | Workflow publicó img + src.tar.gz + SHA256SUMS + NOTAS.md automáticamente |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del

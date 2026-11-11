@@ -90,6 +90,42 @@ tamaño de sector del medio y unidad de arranque. Los dos bootloaders
 - **Traza de arranque**: letras por COM1 (`ABHKVMP3TrE0LCJ`) — cada letra
   es un hito; documentado para depuración.
 
+## 4b. Bootloader UEFI (src/boot/efi/main.zig)
+
+Aplicación EFI en Zig (`std.os.uefi`) que comparte `boot_info.zig` con el
+kernel (módulo común del build) y recibe los offsets de `layout.zig` por
+opciones de compilación:
+
+1. **Localización del medio**: `locateHandleBuffer(BlockIo)` + lectura del
+   bloque 0; se identifica el disco por la marca "ANTLEX" del MBR (offset 3).
+   No se usa SimpleFileSystem: así servirá también para el CD (2048 B).
+2. **Kernel**: lectura por bloques de la P2 directamente a 1 MiB
+   (`AllocateAddress`), `copyForwards` para quitar la cabecera y borrado
+   del `.bss` según la cabecera `ALKR`.
+3. **GOP**: si el modo actual no es de 32 bpp/componente se busca otro
+   (setMode). El orden RGB/BGR se comunica al kernel por el bit 0 de
+   `boot_info.reserved` (la pantalla intercambia canales si procede).
+4. **Mapa de memoria**: conversión de descriptores EFI al formato E820,
+   fusionando regiones contiguas del mismo tipo (OVMF da >100
+   descriptores; el protocolo admite 64). Todas las asignaciones (pool y
+   páginas) se hacen ANTES del mapa definitivo.
+5. **ExitBootServices** con reintentos: relectura silenciosa del mapa
+   (capacidad real del búfer, con margen) y llamada; ninguna operación de
+   consola entre el mapa final y el salto (invalidaría la clave).
+6. **Salto**: `jmp` al entry con RDI = boot_info. El kernel mantiene las
+   tablas de página de UEFI (identidad) hasta que gestione las suyas.
+
+La partición FAT16 (P1) la construye `tools/mkfat.zig` (512 B/sector de
+clúster para superar el umbral FAT12 de 4085 clústeres en 8 MiB) con
+`/EFI/BOOT/BOOTX64.EFI` y `/LEEME.txt`. El mismo `antlexos.img` arranca
+por ambos firmwares.
+
+### 4c. Ajustes del kernel para UEFI
+
+- `cli()` es la primera instrucción de `kmain` (OVMF deja IF=1).
+- `gdt.init()` recarga CS con un far-return al selector 0x18: el CS
+  heredado del firmware apuntaba a la GDT de OVMF, ya sustituida.
+
 ## 5. Kernel
 
 - **Sin std en tiempo de ejecución**: `std` solo se importa para tipos

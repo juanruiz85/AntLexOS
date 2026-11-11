@@ -27,6 +27,16 @@ pub fn init() void {
         : [d] "r" (&descriptor),
         : "memory"
     );
+    // recargar también CS: el selector heredado (BIOS: 0x18 ya correcto;
+    // UEFI: selector propio del firmware) debe pasar a apuntar a NUESTRO
+    // descriptor de código 64 antes de cualquier iretq
+    asm volatile (
+        \\ pushq $0x18
+        \\ leaq 1f(%rip), %rax
+        \\ pushq %rax
+        \\ lretq
+        \\ 1:
+        ::: "ax", "memory");
     // recargar segmentos de datos
     asm volatile (
         \\ movw $0x10, %%ax
