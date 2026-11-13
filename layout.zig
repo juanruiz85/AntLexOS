@@ -29,7 +29,7 @@ pub const alfs_off: u64 = 13 * 1024 * 1024;
 pub const alfs_size: u64 = 16 * 1024 * 1024;
 
 pub const kernel_load_addr: u64 = 0x100000;
-pub const kernel_max_size: u32 = 512 * 1024; // límite del cargador de bajo nivel
+pub const kernel_max_size: u32 = 768 * 1024; // límite del cargador de bajo nivel (la partición P2 es de 4 MiB y el heap arranca en 32 MiB)
 pub const kernel_stack_size: u32 = 64 * 1024;
 
 // Direcciones fijas del protocolo de arranque (BIOS stage2 y EFI las respetan)

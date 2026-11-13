@@ -4,7 +4,7 @@
 Arranca la imagen en QEMU y conversa DE VERDAD con AntLex por teclado QMP:
 intenciones del sistema, memoria aprendida (aprende → pregunta → persistir
 en ALFS → olvida), explicabilidad (por qué) y rechazo educado de temas
-ajenos. Termina con `pruebas` (13/13) y apagado ACPI real.
+ajenos. Termina con `pruebas` (14/14) y apagado ACPI real.
 
 Uso:  probar_antlex.py <imagen.img> <dir_salida> [--tiempo SEG]
 """
@@ -100,7 +100,8 @@ def teclear(qmp, texto, pausa=0.045):
 
 
 def teclear_con_igual(qmp, texto):
-    """teclea `texto` sustituyendo '=' por la combinación shift+0 (ES)."""
+    """teclea `texto` con mapa español: '=' → shift+0, '/' → shift+7 y
+    las MAYÚSCULAS → shift+letra (los qcodes de QMP son solo minúsculas)."""
     for c in texto:
         if c == "=":
             qmp.combo(["shift", "0"])  # '=' es shift+0 en ES
@@ -108,6 +109,10 @@ def teclear_con_igual(qmp, texto):
             continue
         if c == "/":
             qmp.combo(["shift", "7"])  # '/' es shift+7 en ES
+            time.sleep(0.045)
+            continue
+        if "A" <= c <= "Z":
+            qmp.combo(["shift", c.lower()])  # mayúscula
             time.sleep(0.045)
             continue
         q = QCODES.get(c, c)
@@ -277,9 +282,9 @@ def main():
         teclear(qmp, "antlex memoria"); intro(qmp)
         paso("memoria: vacía", "memoria vac", ref, serial_path)
 
-        # 18) autopruebas bajo demanda (13/13 con la de AntLex)
+        # 18) autopruebas bajo demanda (14/14 con la de AntLex)
         teclear(qmp, "pruebas"); intro(qmp)
-        paso("autopruebas 13/13", "AUTOPRUEBAS 13/13 correctas", ref, serial_path, limite=40.0)
+        paso("autopruebas 14/14", "AUTOPRUEBAS 14/14 correctas", ref, serial_path, limite=40.0)
 
         # 19) apagado real por ACPI
         teclear(qmp, "apagar"); intro(qmp)

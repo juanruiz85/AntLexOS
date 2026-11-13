@@ -224,11 +224,12 @@ def main():
         paso("chat eco del usuario", "chat> quien eres", ref, serial_path)
         paso("chat responde AntLex", "IA embebida", ref, serial_path)
 
-        # 9) arrastrar la ventana del editor (título en y 90..106)
-        r.arrastrar(EDIT_X + 240, EDIT_Y + 8, EDIT_X + 310, EDIT_Y + 60)
+        # 9) arrastrar la ventana del editor por el título (y 90..106),
+        #    a la derecha de la ventana Explorador (que llega hasta x=400)
+        r.arrastrar(EDIT_X + 330, EDIT_Y + 8, EDIT_X + 400, EDIT_Y + 60)
         paso("ventana Editor movida", "gui: ventana movida Editor", ref, serial_path)
         # el cierre [X] va con la NUEVA posición de la ventana
-        nuevo_x, nuevo_y = EDIT_X + 70, EDIT_Y + 52
+        nuevo_x, nuevo_y = EDIT_X + 70, EDIT_Y + 52  # +70,+52 desde el origen
         r.clic(nuevo_x + EDIT_AN - 11, nuevo_y + 8)
         paso("ventana Editor cerrada", "gui: ventana cerrada Editor", ref, serial_path)
 

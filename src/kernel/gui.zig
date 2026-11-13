@@ -92,7 +92,8 @@ const Ventana = struct {
 var escritorio_activo = false;
 var foco: Foco = .terminal;
 var foco_ventana: TipoApp = .explorador;
-var ventanas: [3]Ventana = .{ .{}, .{}, .{} };
+// se inicializan en init() (así el array entero vive en .bss, no en .data)
+var ventanas: [3]Ventana = undefined;
 var menu_abierto = false;
 
 // arrastre de ventana
@@ -116,7 +117,7 @@ var chat_an: u32 = 0;
 var barra_y: u32 = 0;
 
 // chat de AntLex (consola propia + línea de entrada)
-var chat = consola.Consola{ .cursor_visible = false };
+var chat = consola.Consola{}; // sin cursor de texto propio (bss)
 var chat_linea: [96]u8 = undefined;
 var chat_len: usize = 0;
 
@@ -588,15 +589,22 @@ fn editorGuardar() void {
 }
 
 fn explAbrir(v: *Ventana, f: *const apps.FilaExpl) void {
+    // copiar los datos ANTES de tocar la lista: en el caso de directorio
+    // explListar reinicia v.expl (donde apunta f) y el nombre se perdería
+    var nbuf: [apps.EXPLORADOR_MAX_NOMBRE]u8 = undefined;
+    const nl: usize = @min(f.nombre_len, apps.EXPLORADOR_MAX_NOMBRE);
+    @memcpy(nbuf[0..nl], f.nombre[0..nl]);
+    const nombre = nbuf[0..nl];
+    const idx = f.idx;
     if (f.tipo == fmt.TIPO_DIRECTORIO) {
-        v.expl_dir = f.idx;
+        v.expl_dir = idx;
         explListar(v);
         serial.puts("gui: explorador entra ");
-        serial.puts(f.nombreStr());
+        serial.puts(nombre);
         serial.puts("\n");
         dibujarTodo();
     } else {
-        editorAbrir(f.idx, f.nombreStr());
+        editorAbrir(idx, nombre);
     }
 }
 

@@ -78,9 +78,9 @@ stage2:
         TRAZA 'H'
         cmp dword [HDR_ADDR], 0x524B4C41   ; "ALKR"
         jne err_kernel
-        ; acotar kernel_size al máximo que puede cargar el cargador (512 KiB):
+        ; acotar kernel_size al máximo que puede cargar el cargador (768 KiB):
         ; una cabecera corrupta no debe desbordar la zona de carga
-        cmp dword [HDR_ADDR+20], 512*1024
+        cmp dword [HDR_ADDR+20], 768*1024
         ja err_kernel
         ; y un tamaño cero también es una cabecera corrupta
         cmp dword [HDR_ADDR+20], 0

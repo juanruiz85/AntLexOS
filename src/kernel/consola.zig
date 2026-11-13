@@ -28,8 +28,8 @@ pub const FONDO_DEF: u32 = pantalla.rgb(0x0A, 0x0E, 0x16);
 /// Techo de geometrías soportadas (1280x800 → 160×50 glifos).
 pub const MAX_COLS = 160;
 pub const MAX_FILAS = 50;
-/// Paleta de estilos por celda (índice de 8 bits, sobran).
-pub const MAX_ESTILOS = 256;
+/// Paleta de estilos por celda (con 16 va sobrada; índice de 8 bits).
+pub const MAX_ESTILOS = 16;
 
 const Celda = packed struct(u16) {
     car: u8,
@@ -43,8 +43,7 @@ pub const Consola = struct {
     filas: u32 = 0,
     cx: u32 = 0,
     cy: u32 = 0,
-    fondo: u32 = FONDO_DEF,
-    cursor_visible: bool = true,
+    cursor_visible: bool = false,
     estilos: [MAX_ESTILOS]Estilo = undefined,
     n_estilos: u8 = 0,
     actual: u8 = 0,
@@ -58,7 +57,7 @@ pub const Consola = struct {
         while (i < self.n_estilos) : (i += 1) {
             if (self.estilos[i].tinta == e.tinta and self.estilos[i].fondo == e.fondo) return i;
         }
-        if (self.n_estilos == MAX_ESTILOS - 1) return 0; // paleta llena: estilo 0
+        if (self.n_estilos == MAX_ESTILOS) return 0; // paleta llena: estilo 0
         self.estilos[self.n_estilos] = e;
         self.n_estilos += 1;
         return self.n_estilos - 1;
@@ -243,6 +242,7 @@ var defecto = Consola{};
 
 pub fn init() void {
     defecto = .{};
+    defecto.cursor_visible = true;
     defecto.regionPantalla();
     defecto.fijarEstilo(.{ .tinta = COLOR_TEXTO, .fondo = FONDO_DEF });
     defecto.limpiar();
