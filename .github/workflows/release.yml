@@ -25,7 +25,7 @@ jobs:
           curl -sL https://ziglang.org/download/0.14.1/zig-x86_64-linux-0.14.1.tar.xz | tar -xJ -C "$RUNNER_TEMP/zigtool"
           echo "$RUNNER_TEMP/zigtool/zig-x86_64-linux-0.14.1" >> "$GITHUB_PATH"
 
-      - name: Compilar y probar (BIOS, UEFI, persistencia e IA)
+      - name: Compilar y probar (BIOS, UEFI, escritorio, ISO, persistencia e IA)
         run: |
           zig build -Drelease=true
           zig build test
@@ -34,10 +34,16 @@ jobs:
           python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas_uefi --uefi --tiempo 150
           python3 tools/probar_alfs.py zig-out/antlexos.img build/pruebas_alfs --tiempo 120
           python3 tools/probar_antlex.py zig-out/antlexos.img build/pruebas_antlex --tiempo 240
+          python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
+          python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_bios --tiempo 120
+          python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_uefi --tiempo 240 --uefi
         env:
           OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
           OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
           TC: /noexiste
+
+      - name: Portables con QEMU (Linux y Windows)
+        run: bash tools/empaquetar_portable.sh zig-out build/portable "${GITHUB_REF_NAME#v}"
 
       - name: Empaquetar binarios del release
         run: bash tools/empaquetar_release.sh

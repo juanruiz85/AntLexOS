@@ -24,10 +24,11 @@ else
         -o "$DIST/antlexos-v${VER}-src.tar.gz"
 fi
 
-# 3) extras opcionales (añadidos por fases posteriores)
+# 3) extras de la Fase 6: ISO arrancable (BIOS+UEFI) y portables con QEMU
 [ -f zig-out/antlexos.iso ] && cp zig-out/antlexos.iso "$DIST/antlexos-v${VER}-x86_64.iso"
-[ -d zig-out/portable-linux ] && cp -r zig-out/portable-linux "$DIST/"
-[ -d zig-out/portable-windows ] && cp -r zig-out/portable-windows "$DIST/"
+for zp in build/portable/antlexos-portable-*.zip; do
+    [ -f "$zp" ] && cp "$zp" "$DIST/antlexos-v${VER}-${zp##*/antlexos-}"
+done
 
 # 4) sumas de verificación
 ( cd "$DIST" && sha256sum * > SHA256SUMS )
