@@ -62,6 +62,23 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_antlex.py zig-out/antlexos.img build/pruebas_antlex --tiempo 240
 
+      - name: Arnés del escritorio (Fase 5, 28 pasos QMP+HMP)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
+
+      - name: ISO en BIOS (El Torito, Fase 6)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_bios --tiempo 120
+
+      - name: ISO en UEFI (OVMF + sección El Torito 0xEF, Fase 6)
+        env:
+          TC: /noexiste
+          OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        run: python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_uefi --tiempo 240 --uefi
+
       - name: Auditoría de seguridad y calidad
         run: python3 tools/auditar.py
 
@@ -71,6 +88,7 @@ jobs:
           name: antlexos-${{ github.sha }}
           path: |
             zig-out/antlexos.img
+            zig-out/antlexos.iso
             zig-out/BOOTX64.EFI
             build/pruebas/*.png
             build/pruebas/serial.log
@@ -78,4 +96,8 @@ jobs:
             build/pruebas_uefi/serial.log
             build/pruebas_alfs/serial_alfs.log
             build/pruebas_antlex/serial_antlex.log
+            build/pruebas_escritorio/escritorio.png
+            build/pruebas_escritorio/serial_final.log
+            build/iso_bios/escritorio-bios-cd.png
+            build/iso_uefi/escritorio-uefi-cd.png
           if-no-files-found: error
