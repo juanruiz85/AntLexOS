@@ -21,7 +21,7 @@ propietario: la identidad de la IA es la del propio sistema, embebida en
 comandos **en español con alias en inglés**; licencia **GPL-3.0**;
 **un tag+release por fase** (v0.1.0 → v1.0.0).
 
-## Estado actual (v0.4.0, Fase 4 terminada)
+## Estado actual (v0.5.0, Fase 5 terminada)
 
 ✅ Fase 1 (v0.1.0): bootloader BIOS completo + kernel con consola gráfica.
 ✅ Fase 1b (v0.1.1): bootloader UEFI propio (BOOTX64.EFI + FAT16 con mkfat).
@@ -46,7 +46,33 @@ comandos **en español con alias en inglés**; licencia **GPL-3.0**;
    (12 canónicas); pruebas host **32/32**; arnés `probar_antlex.py`
    **24/24**; `entrenar-verificar` en CI (reproducibilidad).
 
-Siguiente: **Fase 5 (v0.5.0) escritorio con ventanas** (ver `TODO.md`).
+✅ Fase 5 (v0.5.0): **escritorio con ventanas** — ratón PS/2 real (IRQ12,
+   paquetes con signo, sección crítica en init, sin teclas perdidas al
+   teclear con el ratón en movimiento); escritorio dividido **TERMINAL |
+   chat de AntLex** con foco por clic; barra de tareas con menú INICIO,
+   reloj y memoria; ventanas arrastrables **Explorador** (navega ALFS,
+   abre .txt) y **Editor** (F2 guarda en ALFS) + Acerca de; consolas con
+   rejilla de respaldo (los paneles se repintan al destaparlos); intérprete
+   re-factorizado a `tecla()` para que la GUI enrute el teclado; límite de
+   kernel 768 KiB; autoprueba 14; pruebas host **42/42**; arnés
+   `probar_escritorio.py` **28/28** (ratón por HMP: `input-send-event` no
+   llega al PS/2 en QEMU 11).
+
+Siguiente: **Fase 6 (v1.0.0) empaquetado y distribución** (ver `TODO.md`).
+
+Lecciones Fase 5 para quien continúe:
+1. El controlador PS/2 es COMPARTIDO: teclado y ratón usan el mismo búfer
+   de salida. Sin sección crítica en el init del ratón, la IRQ1 se come
+   los bytes de respuesta; y si IRQ1 vuelve sin leer porque hay un byte
+   AUX delante, el byte de teclado que viene detrás ya no genera otro
+   canto (PIC por flanco) — `raton.irq` lo remata.
+2. `input-send-event` de QMP NO llega al PS/2 en QEMU 11; el ratón se
+   controla por HMP (`mouse_move`/`mouse_button`). Y los qcodes van en
+   minúscula: las mayúsculas se rechazan en silencio (mayúscula =
+   shift+letra; borrar = `backspace`, no `bspc`).
+3. Las estructuras grandes con inicializadores no nulos caen en .data y
+   engordan el binario: inicializadores a cero (todo a .bss) y asignar en
+   init(). La huella total (binario+.bss) es lo que limita el cargador.
 
 Lecciones Fase 4 para quien continúe:
 1. El kernel NO tiene FPU: toda la IA es punto fijo. Q4.11 (±15.99, paso
@@ -229,6 +255,6 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
    entradas, jerárquico) + `tools/mkalfs.zig` desde `fsroot/`.
 3. **Fase 3**: `interprete.zig` (~25 comandos ES+alias, historial, TAB).
 4. **Fase 4**: `tools/entrenar_lex.zig` → pesos embebidos; `src/kernel/lex/`.
-5. **Fase 5**: ratón + escritorio dividido + ventanas (explorador, editor).
+5. **Fase 5**: ✅ terminada (v0.5.0).
 6. **Fase 6**: `tools/mkiso.zig` (ISO9660+El Torito dual) + portables con
    QEMU + release v1.0.0 completo.

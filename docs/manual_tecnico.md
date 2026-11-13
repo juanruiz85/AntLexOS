@@ -1,4 +1,4 @@
-# Manual técnico — AntLex OS v0.3.0
+# Manual técnico — AntLex OS v0.5.0
 
 Documento de referencia interna para desarrollar y depurar el sistema.
 Público: quien quiera entender cómo funciona por dentro o continuar el
@@ -358,6 +358,40 @@ que casó; para los rechazos, el motivo exacto.
 pesos.zig ≈ 23 KB de .rodata; estado de AntLex ≈ 15 KB de .bss (64 pares
 + buffers); la inferencia son ~2k multiplicaciones enteras por pregunta.
 
+## 5c. Escritorio y GUI (Fase 5, `raton.zig` + `gui.zig` + `apps.zig`)
+
+**Ratón PS/2 (`raton.zig`)**: IRQ12 (esclavo 4). Paquetes de 3 bytes con
+sincronización por el bit 3 del primer byte, deltas de 9 bits con signo,
+desbordes descartados; coordenadas acotadas a pantalla. La inicialización
+(A8 + config + F6 + F4) corre en **sección crítica cli/sti** con drenado
+previo del búfer: sin eso, la IRQ1 se come los bytes de respuesta. Los ACK
+se esperan filtrando por el bit AUX. Búfer anillo de eventos
+(mover/pulsar/soltar) igual que el teclado. Detalle fino: si IRQ1 salta con
+un byte de ratón pendiente y devuelve, el byte de teclado que viene detrás
+ya no genera otro canto (PIC por flanco); `raton.irq` lo remata llamando a
+`teclado.irq` tras drenar.
+
+**Consola estructurada (`consola.zig`)**: cada `Consola` mantiene una
+rejilla de celdas (carácter + índice de estilo, 2 B/celda, 160×50 máx) y
+un `redibujar()` completo. El panel TERMINAL es la instancia por defecto
+(API a nivel de módulo sin cambios para el resto del kernel) y el chat es
+una segunda instancia. Las ventanas pueden tapar un panel y, al apartarse,
+el panel se repinta desde la rejilla.
+
+**GUI (`gui.zig`)**: escritorio 60/40 con paneles + barra de tareas de
+28 px; foco terminal/chat/ventana por clic; ventanas (una por app) con
+arrastre acotado, orden Z (la enfocada se pinta última), cierre [X]/ESC y
+doble clic en el explorador (ventana de 40 tics). Cursor de ratón en XOR
+(auto-inverso). Reloj y memoria de la barra refrescados por segundo. El
+teclado se enruta según el foco: `interprete.tecla()` (extraída del bucle
+clásico), la línea del chat o la ventana activa. En modo escritorio
+`antlex.salida` escribe en el panel de chat (siempre refleja por serie).
+`apps.zig` es la lógica PURA de editor/explorador (probada en host); el
+pegamento con ALFS vive en gui.zig.
+
+**Límite del kernel**: 768 KiB (`layout.zig`, P2 es de 4 MiB y el heap
+empieza en 32 MiB). Con la GUI: binario ~375 KB + .bss ~196 KB.
+
 ## 6. Sistema de compilación
 
 `zig build` (recomendado `-Drelease=true` → ReleaseSafe):
@@ -412,6 +446,10 @@ Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).
   un heap > 4 GiB requeriría mapeo propio.
 - A20 solo por puerta rápida (QEMU y hardware moderno la tienen activa).
 - La ISO/El Torito (Fase 6) usará la variante `-D CD=1` ya precompilada.
+- GUI: el cursor en XOR puede glitchear si la consola escribe justo debajo
+  mientras se mueve (sin compositor); se recupera en el siguiente evento.
+- GUI: el editor reserva 8-10 KB de heap por abrir/guardar (bump allocator
+  heredado del kernel; no es alcanzable en sesiones normales).
 - ALFS: `sincronizar` reescribe el volumen COMPLETO (16 MiB): simple pero
   lento; la escritura diferencial (bitmap sucio por bloques) es mejora
   futura. Los archivos muy fragmentados pueden pedir reorden (no hay

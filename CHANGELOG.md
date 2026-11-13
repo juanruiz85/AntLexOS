@@ -1,3 +1,46 @@
+## [v0.5.0] - 2026-11-13
+
+### Fase 5 — Escritorio con ventanas
+
+- **Ratón PS/2 real (IRQ12)**: driver propio con sincronización de paquetes
+  por bit 3, signos de 9 bits, descarte de desbordes y eventos
+  mover/pulsar/soltar en búfer anillo; inicialización con sección crítica
+  (ninguna IRQ se roba los bytes de respuesta) y ACKs filtrados por el bit
+  AUX. `teclado.irq` ignora bytes de ratón y `raton.irq` remata los bytes
+  de teclado rezagados: **teclear con el ratón en movimiento no pierde
+  teclas** (regresión automática del arnés).
+- **Escritorio desde el arranque**: pantalla dividida en **TERMINAL**
+  (consola del intérprete, 60%) y **ANTLEX — CHAT** (40%) con línea de
+  entrada propia; el foco del teclado cambia con un clic y se marca en la
+  barra de título de cada panel. AntLex responde SIEMPRE en su panel (las
+  preguntas del terminal también van al chat).
+- **Barra de tareas**: botón INICIO con menú (Explorador, Editor, Acerca
+  de, Apagar), accesos directos a paneles y ventanas, memoria libre (MiB)
+  y reloj HH:MM actualizados por segundo.
+- **Ventanas flotantes arrastrables**: Explorador de archivos, Editor de
+  texto y Acerca de — foco con clic, orden Z (la enfocada encima),
+  arrastre por la barra de título acotado a pantalla, cierre con [X] o ESC.
+- **Explorador de archivos**: navega ALFS (clic selecciona, INTRO o doble
+  clic abre, RETROCESO sube), muestra la ruta actual y abre .txt en el
+  editor.
+- **Editor de texto**: edición por líneas (insertar, partir, unir,
+  borrar, flechas, INICIO/FIN/SUPR), marca de modificado en el título,
+  aviso de límites y **F2 guarda en ALFS** (vuelve a escribir el archivo
+  y sincroniza).
+- **Consolas con rejilla de respaldo**: `consola.zig` pasa a ser una
+  estructura instanciable (el terminal y el chat son dos Consolas) con
+  rejilla de celdas por carácter/estilo — cualquier panel se redibuja
+  entero cuando una ventana pasa por encima y se aparta.
+- **Límite del kernel 512→768 KiB** (la partición del kernel es de 4 MiB
+  y el heap arranca en 32 MiB): los búferes de la GUI viven en .bss y el
+  binario queda en ~375 KB (huella total ~575 KB).
+- **Pruebas**: autoprueba 14 (`raton_paquetes`), 42/42 pruebas host
+  (driver, editor con partir/unir líneas, explorador), arnés
+  `probar_escritorio.py` de **28 pasos** que ejercita la GUI de verdad por
+  QMP (menú, ventanas, navegación, edición, guardado, chat, arrastre,
+  cierre, apagado ACPI) usando HMP para el ratón
+  (`input-send-event` de QMP no llega al PS/2 en QEMU 11 — documentado).
+
 ## [v0.4.0] - 2026-11-13
 
 ### Fase 4 — IA embebida AntLex (misma identidad que el sistema)

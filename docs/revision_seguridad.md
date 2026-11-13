@@ -166,3 +166,43 @@ controladas por el usuario; sin bucles sin acotar; autoprueba 13
 semántica en CI); PESOS con asserts de dimensiones (un pesos.zig
 inconsistente pánica en el arranque, no en producción); tablas ES del
 arnés ('=' = shift+0, '/' = shift+7) verificadas contra teclado.zig.
+
+
+## REV-FASE5 — 2026-11-13 (pre-v0.5.0)
+
+- **Alcance**: Fase 5 completa — `src/kernel/raton.zig`, `src/kernel/gui.zig`,
+  `src/kernel/apps.zig`, refactor de `src/kernel/consola.zig` (Consola con
+  rejilla), AUX/F2/ESC en `teclado.zig`, `tecla()` extraída en
+  `interprete.zig`, salida de `antlex.zig` al chat, `layout.zig`
+  (kernel_max 768 KiB) + `stage2.asm`, `tools/probar_escritorio.py` y CI.
+- **Veredicto**: **APTO CON OBSERVACIONES** → hallazgos S1/S2 corregidos y
+  cubiertos por regresión automática; arnés del escritorio 28/28 y las
+  cinco suites de regresión en verde.
+- **Secretos**: NINGUNO (auditar.py pasa; el arnés usa QMP/HMP locales).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | MEDIA | Byte de teclado atascado: si IRQ1 se dispara con un byte de ratón pendiente, vuelve sin leer; el byte de teclado detrás suyo no genera otro canto (PIC por flanco) y se pierde hasta la siguiente pulsación — teclear moviendo el ratón perdía teclas | ✅ `raton.irq`, tras drenar los bytes AUX, comprueba si queda un byte de teclado pendiente y llama a `teclado.irq()`; regresión automática en el arnés (paso 2b: teclear con el ratón en movimiento) |
+| S2 | BAJA | Los 4 px del borde superior del menú INICIO ejecutaban el ítem 0 (divTrunc de desplazamientos negativos hacia 0) | ✅ Solo se ejecuta con `dy >= 0`; separador e índices fuera de rango no hacen nada |
+| S3 | BAJA (funcional) | `explAbrir` leía el nombre de la entrada DESPUÉS de relistar el directorio: el puntero apuntaba al array recién reiniciado y el directorio abierto se trazaba con nombre vacío | ✅ Copia de nombre/índice a búfer local antes de relistar; verificado por el arnés («explorador entra ejemplos») |
+| S4 | BAJA (higiene) | Consolas y ventanas con inicializadores no nulos iban a .data (62 KB extra de binario) y la huella total del kernel superaba el límite del cargador en UEFI (597 KB > 512 KiB) | ✅ Inicializadores a cero (todo a .bss), paleta de estilos 256→16 y límite subido a 768 KiB (P2 es de 4 MiB, heap en 32 MiB; stage2 con el mismo tope); binario 375 KB, huella 575 KB |
+| H1 | INFO | El editor reserva 8-10 KB de heap por abrir/guardar sin liberar (bump allocator del kernel) | Comportamiento heredado del resto del kernel (mostrar/alfs hacen lo propio); a 32 MiB de heap no es alcanzable en una sesión normal |
+| H2 | INFO | El cursor en XOR puede corromper unos píxeles si la consola escribe justo debajo mientras se mueve (sin compositor) | Efecto cosmético de v1, documentado; el cursor se redibuja en el siguiente evento |
+| H3 | INFO | `input-send-event` de QMP no llega al PS/2 en QEMU 11 | El arnés usa `mouse_move`/`mouse_button` por HMP (verificado con sonda); documentado en PRUEBAS.md |
+
+### Puntos verificados correctos (resumen)
+
+Sincronización de paquetes PS/2 por bit 3 con descarte de desbordes;
+coordenadas acotadas en IRQ y en la GUI (arrastre clamp que deja la barra
+de título visible); búfer anillo de eventos con contador de desbordes y sin
+corrupción; sección crítica cli/sti en init con restauración de IF y
+timeouts acotados en cada espera de puerto; lecturas de rejilla/entradas
+acotadas por cols/filas y n; copias de nombre por longitud mínima;
+chat_linea/editor/acercas con guardas de longitud en toda escritura;
+`procesarTecla` revalida que la ventana enfocada siga abierta; doble clic
+por ventana de 40 tics con resta saturante; bucle del escritorio sin
+asignaciones; sin cadenas de formato controladas por el usuario; las
+coordenadas de la GUI que replica el arnés están en constantes compartidas
+documentadas en ambos lados.

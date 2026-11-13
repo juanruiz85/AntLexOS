@@ -1,4 +1,4 @@
-# Manual de usuario — AntLex OS v0.3.0
+# Manual de usuario — AntLex OS v0.5.0
 
 Bienvenido a **AntLex OS**, un sistema operativo experimental que arranca
 en modo gráfico desde el primer instante. Este manual cubre la versión
@@ -44,7 +44,7 @@ y arranca el PC desde el USB con BIOS legacy o UEFI. No instala nada: todo
 corre desde el medio. *Advertencia: proyecto experimental; pruébalo en
 hardware que no contenga datos importantes.*
 
-## 3. Usar la consola (v0.4.0)
+## 3. Usar el escritorio y la consola (v0.5.0)
 
 La consola tiene un intérprete real con **26 comandos** en español (y alias
 en inglés), incluido `antlex` para hablar con la IA del sistema. El símbolo
@@ -139,6 +139,44 @@ verifica el archivo).
 - La distribución de teclado es **española** por defecto (ñ, acentos
   muertos, ¿¡); cambia a US con `teclado us`.
 
+## 3b. El escritorio (v0.5.0)
+
+Al terminar el arranque ya no aparece solo la consola: hay un
+**escritorio** dividido en dos paneles con una **barra de tareas** abajo.
+
+- **Panel TERMINAL (izquierda)**: la consola de siempre. Escribe `ayuda`
+  para ver los comandos.
+- **Panel ANTLEX — CHAT (derecha)**: haz clic en él y escribe tu pregunta
+  (por ejemplo `quien eres`), pulsa INTRO y AntLex responde ahí. Las
+  preguntas hechas desde el terminal con `antlex …` también se responden
+  en este panel.
+- **Barra de tareas**: botón **INICIO** (menú con las aplicaciones y
+  Apagar), accesos a **TERMINAL**/**CHAT** y a las ventanas abiertas, y a
+  la derecha la **memoria libre** y el **reloj**.
+
+El foco del teclado lo marca el panel resaltado: haz **clic** sobre el
+panel o ventana donde quieras escribir.
+
+### Ventanas
+
+- **Explorador de archivos**: navega por ALFS. Un clic selecciona,
+  **INTRO** (o doble clic) abre; **RETROCESO** sube de directorio. Los
+  `.txt` se abren en el Editor.
+- **Editor de texto**: edita líneas (flechas, INICIO/FIN, SUPR,
+  retroceso, INTRO para partir). **F2 guarda** el archivo en ALFS (el
+  título muestra `*` mientras hay cambios sin guardar) y **ESC cierra**.
+- **Acerca de**: versión, licencia y componentes.
+
+Arrastra una ventana por su **barra de título**; ciérrala con el botón
+**[X]** o con ESC. Si algo se solapa, la ventana con el foco se dibuja
+encima.
+
+### Ratón y teclado juntos
+
+Puedes teclear mientras mueves el ratón: el driver de teclado y el de
+ratón comparten el controlador PS/2 sin perder pulsaciones (hay una
+prueba automática que lo verifica en cada versión).
+
 ## 4. ¿Qué hace el sistema durante el arranque?
 
 1. El **stage1** (sector de arranque) comprueba el BIOS y carga el stage2
@@ -165,7 +203,7 @@ verifica el archivo).
 | Cambios perdidos tras reiniciar | Falta `sincronizar` | Sincroniza antes de apagar |
 | "no hay bloques contiguos" | Fragmentación | Borra archivos que no necesites y vuelve a intentar |
 
-## 6. Atajos de teclado (v0.3.0)
+## 6. Atajos de teclado (v0.5.0)
 
 | Tecla | Efecto |
 |---|---|
@@ -182,6 +220,10 @@ verifica el archivo).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v0.5.0**: **escritorio con ventanas** — ratón PS/2 con cursor,
+  paneles TERMINAL y chat de AntLex, barra de tareas con menú INICIO,
+  reloj y memoria; ventanas arrastrables con Explorador de archivos,
+  Editor de texto (F2 guarda en ALFS) y Acerca de.
 - **v0.4.0**: IA embebida **AntLex** — red neuronal entrenada al compilar,
   inferencia de punto fijo sin FPU, respuestas con datos en vivo, memoria
   aprendida persistente (`aprende`/`olvida`), explicabilidad (`por que`) y

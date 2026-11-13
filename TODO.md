@@ -55,14 +55,14 @@ auditoría en `docs/revision_seguridad.md`.
 - [x] Arnés `probar_antlex.py` (24 pasos por QMP) + pruebas host 32/32 +
       `zig build entrenar-verificar` (reproducibilidad de los pesos)
 
-## Fase 5 (v0.5.0) — Escritorio con ventanas
-- [ ] Ratón PS/2 (IRQ12) con cursor
-- [ ] Escritorio dividido: TERMINAL | chat de AntLex (paneles base)
-- [ ] Barra de tareas: menú, ventanas abiertas, reloj, memoria
-- [ ] Ventanas flotantes arrastrables: Explorador de archivos, Editor de
-      texto, Acerca de
-- [ ] Explorador: navegar ALFS, abrir .txt en el editor
-- [ ] Editor: editar líneas, guardar en ALFS
+## Fase 5 (v0.5.0) — Escritorio con ventanas ✅
+- [x] Ratón PS/2 (IRQ12) con cursor (XOR, auto-inverso) y eventos por búfer
+- [x] Escritorio dividido: TERMINAL | chat de AntLex (paneles base)
+- [x] Barra de tareas: menú INICIO, botones de paneles/ventanas, reloj y memoria
+- [x] Ventanas flotantes arrastrables: Explorador de archivos, Editor de
+      texto, Acerca de (foco, orden Z, cierre [X] y ESC)
+- [x] Explorador: navegar ALFS, abrir .txt en el editor (clic+INTRO y doble clic)
+- [x] Editor: editar líneas, guardar en ALFS (F2, con marca de modificado)
 
 ## Fase 6 (v1.0.0) — Empaquetado y distribución
 - [ ] `tools/mkiso.zig`: ISO9660 + El Torito (BIOS y UEFI) sin xorriso

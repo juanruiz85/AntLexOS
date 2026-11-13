@@ -765,8 +765,13 @@ fn procesarClic(x: i32, y: i32) void {
     if (menu_abierto) {
         const r = menuRect();
         if (enRect(x, y, @intCast(r.x), @intCast(r.y), r.an, r.al)) {
-            const fila: i32 = @divTrunc(y - @as(i32, @intCast(r.y)) - 4, @as(i32, MENU_ITEM_AL));
-            ejecutarMenuItem(fila);
+            const dy = y - @as(i32, @intCast(r.y)) - 4;
+            // el margen de 4 px y el separador no eligen nada: solo los
+            // ítems reales (0..4) ejecutan su acción
+            if (dy >= 0) {
+                const fila: i32 = @divTrunc(dy, @as(i32, MENU_ITEM_AL));
+                ejecutarMenuItem(fila);
+            }
         }
         menu_abierto = false;
         serial.puts("gui: menu cerrado\n");

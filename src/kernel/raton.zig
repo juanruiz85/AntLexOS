@@ -11,6 +11,7 @@ const std = @import("std");
 const x86 = @import("x86.zig");
 const pantalla = @import("pantalla.zig");
 const pic = @import("pic.zig");
+const teclado = @import("teclado.zig");
 
 pub const Boton = enum(u2) { izq = 0, der = 1, medio = 2 };
 
@@ -186,6 +187,14 @@ pub fn posicion() struct { x: u32, y: u32 } {
 pub fn irq() void {
     while (x86.inb(0x64) & 0x21 == 0x21) {
         procesarByte(x86.inb(0x60));
+    }
+    // Si al drenar el ratón quedó un byte de TECLADO pendiente, hay que
+    // procesarlo aquí: su IRQ1 ya se disparó (PIC por flanco: no habrá
+    // otro canto hasta la siguiente pulsación) y teclado.irq() lo habría
+    // dejado atrás al encontrar el bit AUX. Sin esto, teclear mientras
+    // se mueve el ratón pierde la primera tecla de la ráfaga.
+    if (x86.inb(0x64) & 0x01 != 0) {
+        teclado.irq();
     }
 }
 

@@ -180,6 +180,22 @@ def main():
         PASOS_OK += 1
         log("ok: cursor mueve sin bloquear")
 
+        # 2b) teclear mientras el ratón se mueve: ninguna tecla debe
+        #     quedarse atascada detrás de los bytes del ratón (REV-FASE5 S1)
+        for _ in range(6):
+            r.mover(r.x + 5, r.y + 3)
+            qmp.tecla("a")
+            time.sleep(0.06)
+        _, pos_b = esperar(serial_path, "aaaaaa", 10.0)
+        if pos_b >= 0:
+            PASOS_OK += 1
+            log("ok: teclear con el ratón en movimiento (S1)")
+        else:
+            PASOS_MAL += 1
+            log("FALLA: teclas perdidas con el ratón en movimiento (S1)")
+        for _ in range(6):
+            qmp.tecla("backspace"); time.sleep(0.05)  # limpiar la línea
+
         # 3) menú INICIO → Explorador (el orden de los marcadores sigue
         #    al del serial: primero la ventana, luego el foco, al final el
         #    cierre del menú)
@@ -290,9 +306,9 @@ def main():
         if os.path.exists(serial_path):
             shutil.copyfile(serial_path, os.path.join(salida_abs, "serial_final.log"))
 
-    log(f"RESULTADO: {'PASA' if PASOS_MAL == 0 and PASOS_OK >= 25 else 'FALLA'} "
+    log(f"RESULTADO: {'PASA' if PASOS_MAL == 0 and PASOS_OK >= 26 else 'FALLA'} "
         f"({PASOS_OK} ok, {PASOS_MAL} fallos)")
-    return 0 if PASOS_MAL == 0 and PASOS_OK >= 25 else 1
+    return 0 if PASOS_MAL == 0 and PASOS_OK >= 26 else 1
 
 
 if __name__ == "__main__":

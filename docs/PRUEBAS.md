@@ -95,6 +95,20 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0055 | 2026-11-13 | 0.4.0 | CI GitHub (push main + tag v0.4.0) | ✅ | CI en verde: fmt + build + 32/32 host + entrenar-verificar (pesos reproducibles) + arranque BIOS + UEFI + persistencia ALFS + **arnés AntLex 24/24** + auditoría; Release workflow en verde |
 | P-0056 | 2026-11-13 | 0.4.0 | **Release v0.4.0 en GitHub** | ✅ | Publicado automáticamente: antlexos-v0.4.0-x86_64.img (29 MiB) + src.tar.gz + NOTAS.md + SHA256SUMS — https://github.com/juanruiz85/AntLexOS/releases/tag/v0.4.0 |
 
+
+| P-0057 | 2026-11-13 | 0.5.0-dev | **Arranque del escritorio** (BIOS) | ✅ | Ratón PS/2 activo (IRQ12), autopruebas 14/14, ESCRITORIO LISTO, 26534 px iluminados |
+| P-0058 | 2026-11-13 | 0.5.0-dev | Driver de ratón: decodificación y acotado | ✅ | Autoprueba 14 (raton_paquetes) + 3 pruebas host: signos, botones, desbordes, clamp |
+| P-0059 | 2026-11-13 | 0.5.0-dev | Editor/explorador (lógica pura, host) | ✅ | 5 pruebas host: cargar/serializar en redondo, partir y unir líneas, SUPR, límites de línea, selección del explorador (42/42 en total) |
+| P-0060 | 2026-11-13 | 0.5.0-dev | **Arnés del escritorio** (`probar_escritorio.py`) | ❌ | input-send-event de QMP no llega al PS/2 en QEMU 11 — sustituido por mouse_move/mouse_button vía HMP |
+| P-0061 | 2026-11-13 | 0.5.0-dev | Arnés del escritorio (2ª pasada) | ❌ | Marcadores buscados fuera de orden (ref avanzaba por «menu cerrado» antes que por la apertura) y clic de [X] con coordenadas previas al arrastre — corregidos ambos |
+| P-0062 | 2026-11-13 | 0.5.0-dev | Arnés del escritorio (3ª pasada) | ❌ | Mayúsculas: QMP rechaza qcodes en mayúscula («Escribo»→«scribo»); el arnés las teclea ahora con shift+letra |
+| P-0063 | 2026-11-13 | 0.5.0-dev | Arnés del escritorio (4ª pasada) | ❌ | S3: nombre de directorio vacío al entrar (use-after-reset en explAbrir) — copia local antes de relistar; PASA 27/27 |
+| P-0064 | 2026-11-13 | 0.5.0-dev | **Arnés del escritorio completo** | ✅ | 28/28: menú, ventana Explorador, navegación con clic+INTRO, editor abre DATOS.TXT, edición+F2, verificación por `mostrar` desde el TERMINAL, chat de AntLex, arrastre, cierre por [X] y ESC, captura, apagado ACPI desde el menú |
+| P-0065 | 2026-11-13 | 0.5.0-dev | UEFI con escritorio | ❌ | Huella kernel 597 KB > límite 512 KiB del cargador EFI — consolas/ventanas a .bss, paleta 256→16, límite 768 KiB (stage2+EFI); huella 575 KB |
+| P-0066 | 2026-11-13 | 0.5.0-dev | Regresiones tras cambios de tamaño | ✅ | Host 42/42, BIOS boot+intérprete+ALFS+AntLex, UEFI boot (splash 2138 px), escritorio 28/28 |
+| P-0067 | 2026-11-13 | 0.5.0-dev | Revisión de seguridad REV-FASE5 | ✅ | APTO CON OBSERVACIONES; S1 (tecla atascada tras bytes de ratón), S2 (borde del menú), S3, S4 corregidos; regresión S1 en el arnés (paso 2b) |
+| P-0068 | 2026-11-13 | 0.5.0-dev | Limpieza del terminal en el paso 2b del arnés | ❌ | «bspc» no es un qcode de QEMU (rechazado en silencio): la línea quedó «aaaaaamostrar» — el qcode correcto es «backspace»; PASA de nuevo 28/28 |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
@@ -102,3 +116,7 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
   desarrollo (el proyecto valora el registro detallado).
 - P-0015 quedó automatizada en la Fase 3: el arnés `probar_interprete.py`
   ejerce el teclado real por QMP (incluido Ctrl+C y TAB) en cada ejecución.
+- El arnés del escritorio controla el ratón por HMP (`mouse_move`,
+  `mouse_button`) porque `input-send-event` de QMP no llega al dispositivo
+  PS/2 en QEMU 11 (verificado con sonda; P-0060). Las coordenadas de
+  botones/menú/ventanas del arnés replican las constantes de gui.zig.
