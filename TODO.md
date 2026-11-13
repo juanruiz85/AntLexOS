@@ -78,6 +78,8 @@ auditoría en `docs/revision_seguridad.md`.
 - [ ] Asignador de memoria por clases de tamaño (sustituir bump allocator)
 - [ ] ATA DMA / AHCI; discos más grandes
 - [ ] Sonido PC speaker; pitido de arranque
-- [ ] Juego incluido (¿snake en el escritorio?)
+- [x] Juego incluido: **Adivina** (v1.1.0-dev, ejemplo del manual de aplicaciones)
+- [ ] Formato de ejecutables `.ALX` + loader (ring 0 primero; aislamiento después) — ver manual_aplicaciones.md §5
+- [ ] Pila USB (XHCI + mass-storage + lector FAT) para memoria USB
 - [ ] Red (virtio-net) — muy a largo plazo
 - [ ] Múltiples terminales simultáneas

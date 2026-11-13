@@ -120,6 +120,10 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0077 | 2026-11-13 | 1.0.0-dev | Corrección del CI de v0.5.0 | ⚠️ | El arnés del escritorio NO se ejecutó en el CI de v0.5.0 (un replace silencioso dejó ci.yml sin el paso); corregido con assert y re-verificado |
 | P-0078 | 2026-11-13 | 1.0.0-dev | Auditoría REV-FASE6 | ✅ | APTO CON OBSERVACIONES: S1 (guardia stage1_cd) y S2 (format=raw) corregidos; H1-H3 informativos |
 
+| P-0079 | 2026-11-13 | 1.1.0-dev | Lógica del juego Adivina en host | ✅ | 2 pruebas deterministas (ronda completa con semilla fija, límites y teclas ignoradas): 44/44 en total |
+| P-0080 | 2026-11-13 | 1.1.0-dev | Juego Adivina en el escritorio (arnés) | ✅ | 33/33: abrir por clic, foco, ronda nueva, intento por teclado real, cierre con ESC |
+| P-0081 | 2026-11-13 | 1.1.0-dev | Auditoría REV-v1.1.0-dev + documentación | ✅ | auditar.py PASA; manual de aplicaciones coherente con el código (verificado cada extracto) |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del

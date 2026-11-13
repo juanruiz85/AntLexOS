@@ -1,3 +1,23 @@
+## [v1.1.0-dev] - Sin publicar
+
+### Manual de aplicaciones + primera app de terceros
+
+- **Juego «Adivina»**: la primera aplicación añadida siguiendo el flujo
+  del manual — lógica pura en `apps.zig` (xorshift con semilla, pruebas
+  host deterministas), cuarto tipo de ventana en la GUI, botón propio en
+  la barra de tareas y 5 pasos nuevos en el arnés del escritorio (33/33).
+- **docs/manual_aplicaciones.md**: cómo crear apps y juegos para AntLex
+  OS — arquitectura (no hay ejecutables independientes: módulos Zig
+  compilados en el kernel y por qué), los tres canales para meter datos
+  sin USB ni red (`fsroot/`, `escribir`/`anexar`, editor+F2), tutorial
+  completo con el juego como ejemplo, lista de comprobación y las ideas
+  de un futuro formato `.ALX`. Incluye la respuesta a por qué el
+  Explorador no muestra los archivos del sistema (intencional: solo
+  monta ALFS; arranque y kernel viven en sectores crudos por LBA fijo).
+- **README** reescrito para v1.0.0+ (portables/ISO como forma preferida
+  de probar, capturas del escritorio y del juego, tabla de fases al día)
+  y manuales de usuario y técnico actualizados.
+
 ## [v1.0.0] - 2026-11-13
 
 ### Fase 6 — Empaquetado y distribución

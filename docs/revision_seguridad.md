@@ -242,3 +242,44 @@ confiar en el sistema de archivos; el extractor de portables excluye el
 directorio $PLUGINSDIR del NSIS; las descargas con --retry y caché
 idempotente; sin secretos; lanzadores con rutas relativas al propio
 script (funcionan desde cualquier directorio).
+
+
+## REV-v1.1.0-dev — 2026-11-13 (manual de aplicaciones + juego Adivina)
+
+- **Alcance**: `src/kernel/apps.zig` (juego), `src/kernel/gui.zig`
+  (registro de la ventana), `tools/probar_escritorio.py` (pasos nuevos),
+  `docs/manual_aplicaciones.md` (nuevo), README y manuales.
+- **Metodología**: `tools/auditar.py` completo (PASA: sin secretos, sin
+  marcadores, VERSION y version.zig sincronizadas en 1.1.0-dev) +
+  revisión manual del código y de cada afirmación técnica del manual
+  contra el fuente + re-ejecución de toda la batería afectada.
+
+### Verificación ejecutada
+
+| Prueba | Resultado |
+|---|---|
+| `zig build test` (host) | 44/44 (42 previas + 2 del juego, deterministas) |
+| `probar_escritorio.py` (BIOS, 33 pasos) | 33/33 — clic/teclado reales por QMP+HMP |
+| `zig fmt --check` | limpio |
+| `auditar.py` | PASA |
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | BAJA | Orden de trazas: «gui: adivina nueva» se emitía ANTES de «gui: foco ventana Adivina», y el arnés busca los marcadores en orden → paso en falso negativo | ✅ La ronda nueva se inicia tras `enfocarVentana` (orden lógico y trazas en secuencia); arnés 33/33 |
+| S2 | BAJA (evitado) | Riesgo de regresión al añadir un botón a la barra: el arnés replica las coordenadas de los botones existentes | ✅ Botón añadido AL FINAL (x=436, no desplaza ninguno); los pasos previos pasan intactos |
+| H1 | INFO | El azar del juego usa xorshift de 32 bits con semilla del PIT: no es criptográfico | Adecuado para un juego; documentado en el manual («El azar sin hardware») |
+| H2 | INFO | `TipoApp` es `u2`: cupo de 4 ventanas alcanzado | Documentado en el manual §3.3 (cambiar a `u3` y agrandar `ventanas` cuando haga falta) |
+| H3 | INFO | El manual afirma que no hay pila USB ni red: verificado contra el código (solo ATA/PS/2/serie) y coherente con TODO.md (ideas futuras) | — |
+
+### Puntos verificados correctos (resumen)
+
+Búferes del juego acotados (3 dígitos, mensaje de 48 B con `@min`, sin
+punteros ni allocación); parseo numérico sin desbordamiento (máx. 999 en
+u16); xorshift nunca recibe semilla 0 (`| 1`); las entradas fuera de
+1..100 no cuentan como intento y se contestan con mensaje acotado; sin
+nuevas superficies de entrada desde hardware (el teclado pasa por el
+despacho central de la GUI); el manual no promete funciones inexistentes
+(USB, red y ejecutables .ALX figuran como ideas futuras, no como
+presentes).
