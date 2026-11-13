@@ -13,6 +13,10 @@ las Fases 4-5.
 
 ## 2. Arrancar
 
+> ¿Quieres hacer tu propia app o juego? Lee el
+> [manual de aplicaciones](manual_aplicaciones.md): explica cómo se crea
+> (el juego Adivina es el ejemplo) y cómo meter datos en el sistema.
+
 Desde la v1.0.0 hay tres formas, todas sin instalar nada:
 
 - **Imagen de disco** (BIOS y UEFI): `antlexos.img` con tu QEMU o el
@@ -177,6 +181,9 @@ panel o ventana donde quieras escribir.
   retroceso, INTRO para partir). **F2 guarda** el archivo en ALFS (el
   título muestra `*` mientras hay cambios sin guardar) y **ESC cierra**.
 - **Acerca de**: versión, licencia y componentes.
+- **Adivina (juego)**: el sistema piensa un número del 1 al 100; escribe
+  cifras y pulsa INTRO — te dirá si el tuyo es menor o mayor. INTRO
+  inicia otra ronda tras acertar.
 
 Arrastra una ventana por su **barra de título**; ciérrala con el botón
 **[X]** o con ESC. Si algo se solapa, la ventana con el foco se dibuja
@@ -231,6 +238,9 @@ prueba automática que lo verifica en cada versión).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v1.1.0-dev**: **manual de aplicaciones** + juego **Adivina** (primera
+  app de terceros, ejemplo del manual); los datos se meten por `fsroot/`,
+  terminal o editor (aún sin USB ni red).
 - **v1.0.0**: **empaquetado y distribución** — ISO9660+El Torito que
   arranca en BIOS y UEFI sin xorriso, portables Linux/Windows con QEMU
   incluido, release completo con sumas de verificación.

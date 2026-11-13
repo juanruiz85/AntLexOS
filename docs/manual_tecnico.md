@@ -379,6 +379,8 @@ una segunda instancia. Las ventanas pueden tapar un panel y, al apartarse,
 el panel se repinta desde la rejilla.
 
 **GUI (`gui.zig`)**: escritorio 60/40 con paneles + barra de tareas de
+siete botones (INICIO, TERMINAL, CHAT, Explorador, Editor, Acerca y
+Adivina) —
 28 px; foco terminal/chat/ventana por clic; ventanas (una por app) con
 arrastre acotado, orden Z (la enfocada se pinta última), cierre [X]/ESC y
 doble clic en el explorador (ventana de 40 tics). Cursor de ratón en XOR
@@ -386,11 +388,23 @@ doble clic en el explorador (ventana de 40 tics). Cursor de ratón en XOR
 teclado se enruta según el foco: `interprete.tecla()` (extraída del bucle
 clásico), la línea del chat o la ventana activa. En modo escritorio
 `antlex.salida` escribe en el panel de chat (siempre refleja por serie).
-`apps.zig` es la lógica PURA de editor/explorador (probada en host); el
+`apps.zig` es la lógica PURA de editor/explorador/adivina (probada en
+host); el
 pegamento con ALFS vive en gui.zig.
 
 **Límite del kernel**: 768 KiB (`layout.zig`, P2 es de 4 MiB y el heap
 empieza en 32 MiB). Con la GUI: binario ~375 KB + .bss ~196 KB.
+
+### ¿Por qué el Explorador no ve los archivos del sistema?
+
+Por diseño. El kernel solo monta el volumen ALFS (13 MiB); la cadena de
+arranque y el propio kernel viven en regiones crudas leídas por LBA fijo
+(ver «Layout del medio de arranque») y para el kernel no son archivos: no
+pueden listarse, modificarse ni borrarse desde ALFS. Eso aísla el sistema
+de los datos del usuario. Las aplicaciones (Explorador, Editor, Adivina…)
+son módulos compilados dentro del kernel: no hay archivos ejecutables en
+ALFS — el [manual de aplicaciones](manual_aplicaciones.md) describe cómo
+crear la tuya y qué haría falta para un formato `.ALX` en el futuro.
 
 ## 5d. ISO y portables (Fase 6, `stage1_cd.asm` + `tools/mkiso.zig` + `tools/empaquetar_portable.sh`)
 
