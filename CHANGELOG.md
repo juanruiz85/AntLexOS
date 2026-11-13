@@ -1,3 +1,34 @@
+## [v1.0.0] - 2026-11-13
+
+### Fase 6 — Empaquetado y distribución
+
+- **ISO9660 + El Torito sin xorriso** (`tools/mkiso.zig`, 392 líneas):
+  PVD con registro raíz en el byte 164 (estructura EFI/isofs), tablas de
+  rutas L/M, árbol /EFI/BOOT y /LEEME.TXT, y catálogo El Torito con
+  entrada por defecto (BIOS) **y sección UEFI (plataforma 0xEF)** que
+  expone la FAT16 embebida como partición — EDK2 moderno ya no trae
+  driver ISO9660 y esa es la vía estándar.
+- **stage1_cd.asm**: imagen de arranque El Torito «sin emulación» (2048 B)
+  que carga stage2_cd del LBA 1 por int 13h LBA; con **guardia de
+  ensamblado** que impide que el código pase de 512 B (stage2 pisa 0x7E00).
+- **Kernel alineado a sector de CD**: cabecera (512 B) al principio del
+  LBA 4608 y binario en el 4609 — stage2_cd y el bootloader UEFI leen el
+  mismo layout sin cambios.
+- **Arranque desde CD en BIOS y UEFI verificado**: arnés `probar_iso.py`
+  (BIOS 6/6, UEFI 7/7) con capturas; en CD puro las autopruebas bajan a
+  11/14 por la ausencia de disco ATA (comportamiento documentado).
+- **Portables «descargar y probar»**: `tools/empaquetar_portable.sh` arma
+  **antlexos-portable-linux-x86_64.zip** (QEMU 11 estático + firmware
+  propio + lanzadores) y **antlexos-portable-windows-x86_64.zip**
+  (qemu-system-x86_64.exe del build oficial de Stefan Weil, SHA-512
+  verificado, extraído del instalador NSIS con 7zz; `resolver_dlls.py`
+  computa la clausura EXACTA de DLLs: 104, 121 MiB). El portable Linux
+  arranca de verdad en BIOS y UEFI desde el ZIP descomprimido.
+- **Release completo**: workflow con las siete suites de pruebas antes de
+  publicar; artefactos IMG + ISO + 2 portables + fuente + SHA256SUMS.
+- **Auditoría REV-FASE6**: S1 (guardia de tamaño de stage1_cd) y S2
+  (format=raw en los lanzadores) corregidos; hallazgos H1-H3 documentados.
+
 ## [v0.5.0] - 2026-11-13
 
 ### Fase 5 — Escritorio con ventanas

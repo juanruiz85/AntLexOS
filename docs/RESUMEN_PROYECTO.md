@@ -21,7 +21,7 @@ propietario: la identidad de la IA es la del propio sistema, embebida en
 comandos **en español con alias en inglés**; licencia **GPL-3.0**;
 **un tag+release por fase** (v0.1.0 → v1.0.0).
 
-## Estado actual (v0.5.0, Fase 5 terminada)
+## Estado actual (v1.0.0, Fase 6 terminada — PROYECTO COMPLETO)
 
 ✅ Fase 1 (v0.1.0): bootloader BIOS completo + kernel con consola gráfica.
 ✅ Fase 1b (v0.1.1): bootloader UEFI propio (BOOTX64.EFI + FAT16 con mkfat).
@@ -58,7 +58,8 @@ comandos **en español con alias en inglés**; licencia **GPL-3.0**;
    `probar_escritorio.py` **28/28** (ratón por HMP: `input-send-event` no
    llega al PS/2 en QEMU 11).
 
-Siguiente: **Fase 6 (v1.0.0) empaquetado y distribución** (ver `TODO.md`).
+Siguientes: **Fase 6 completada** — el proyecto está en su objetivo v1.0.0;
+las «Ideas futuras» de TODO.md marcan el camino posterior.
 
 Lecciones Fase 5 para quien continúe:
 1. El controlador PS/2 es COMPARTIDO: teclado y ratón usan el mismo búfer
@@ -256,5 +257,4 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
 3. **Fase 3**: `interprete.zig` (~25 comandos ES+alias, historial, TAB).
 4. **Fase 4**: `tools/entrenar_lex.zig` → pesos embebidos; `src/kernel/lex/`.
 5. **Fase 5**: ✅ terminada (v0.5.0).
-6. **Fase 6**: `tools/mkiso.zig` (ISO9660+El Torito dual) + portables con
-   QEMU + release v1.0.0 completo.
+6. **Fase 6**: ✅ terminada (v1.0.0).

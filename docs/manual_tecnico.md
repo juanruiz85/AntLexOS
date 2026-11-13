@@ -1,4 +1,4 @@
-# Manual técnico — AntLex OS v0.5.0
+# Manual técnico — AntLex OS v1.0.0
 
 Documento de referencia interna para desarrollar y depurar el sistema.
 Público: quien quiera entender cómo funciona por dentro o continuar el
@@ -391,6 +391,24 @@ pegamento con ALFS vive en gui.zig.
 
 **Límite del kernel**: 768 KiB (`layout.zig`, P2 es de 4 MiB y el heap
 empieza en 32 MiB). Con la GUI: binario ~375 KB + .bss ~196 KB.
+
+## 5d. ISO y portables (Fase 6, `stage1_cd.asm` + `tools/mkiso.zig` + `tools/empaquetar_portable.sh`)
+
+**ISO (29 MiB)**: área de sistema con la marca ANTLEX (el bootloader UEFI
+identifica el medio por BlockIO), stage2_cd en el LBA 1, PVD/BRVD/terminador
+en 16-18 (el BRVD con «EL TORITO SPECIFICATION» relleno con CEROS: SeaBIOS
+compara con strcmp), catálogo en el 19 (validación con checksum+55AA en
+28-31 y entrada BIOS sin emulación al LBA 20) **más sección UEFI 0xEF** que
+apunta a la FAT16 embebida (EDK2 no trae driver ISO9660: la monta como
+partición el driver FAT). El kernel va ALINEADO: cabecera 512 B en el LBA
+4608 y binario en el 4609, el mismo layout que leen stage2_cd (+1 sector)
+y el bootloader UEFI (+tamanio_sector).
+
+**Portables**: el de Linux lleva el QEMU 11 estático de
+hermeticbuild/qemu-prebuilt con un wrapper `-L fw`; el de Windows extrae el
+instalador oficial de Stefan Weil (SHA-512 verificado) con 7zz estático y
+`resolver_dlls.py` computa la clausura exacta de DLLs por importaciones
+recursivas de objdump (104 DLLs).
 
 ## 6. Sistema de compilación
 

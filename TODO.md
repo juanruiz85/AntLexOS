@@ -64,13 +64,15 @@ auditoría en `docs/revision_seguridad.md`.
 - [x] Explorador: navegar ALFS, abrir .txt en el editor (clic+INTRO y doble clic)
 - [x] Editor: editar líneas, guardar en ALFS (F2, con marca de modificado)
 
-## Fase 6 (v1.0.0) — Empaquetado y distribución
-- [ ] `tools/mkiso.zig`: ISO9660 + El Torito (BIOS y UEFI) sin xorriso
-- [ ] `stage1_cd.asm` + variante CD de stage2 (sectores de 2048)
-- [ ] `tools/empaquetar_portable.sh`: ZIP portable Linux con QEMU incluido
-      y ZIP Windows (qemu w64) — descargar y probar sin instalar nada
-- [ ] Release v1.0.0: IMG + ISO + portables + fuente + SHA256SUMS
-- [ ] Verificación end-to-end de los artefactos publicados
+## Fase 6 (v1.0.0) — Empaquetado y distribución ✅
+- [x] `tools/mkiso.zig`: ISO9660 + El Torito (BIOS y UEFI) sin xorriso
+- [x] `stage1_cd.asm` (con guardia de 512 B) + stage2 CD ya existente
+- [x] `tools/empaquetar_portable.sh` + `resolver_dlls.py`: ZIP portable
+      Linux con QEMU estático y ZIP Windows (qemu w64 de Stefan Weil con
+      SHA-512 verificado, clausura exacta de DLLs) — sin instalar nada
+- [x] Release v1.0.0: IMG + ISO + portables + fuente + SHA256SUMS
+- [x] Verificación end-to-end: ISO arranca en BIOS y UEFI (arnés dedicado);
+      portable Linux arrancado de verdad en ambos modos
 
 ## Ideas futuras (v1.x+)
 - [ ] Asignador de memoria por clases de tamaño (sustituir bump allocator)

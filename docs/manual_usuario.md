@@ -1,4 +1,4 @@
-# Manual de usuario — AntLex OS v0.5.0
+# Manual de usuario — AntLex OS v1.0.0
 
 Bienvenido a **AntLex OS**, un sistema operativo experimental que arranca
 en modo gráfico desde el primer instante. Este manual cubre la versión
@@ -12,6 +12,17 @@ las Fases 4-5.
 - Teclado (español por defecto; se puede cambiar a US).
 
 ## 2. Arrancar
+
+Desde la v1.0.0 hay tres formas, todas sin instalar nada:
+
+- **Imagen de disco** (BIOS y UEFI): `antlexos.img` con tu QEMU o el
+  portable.
+- **ISO** (`antlexos.iso`): grábala en un CD/DVD o úsala como ISO de
+  arranque en cualquier máquina virtual — funciona en BIOS (El Torito)
+  y en UEFI.
+- **Portable**: descomprime `antlexos-portable-linux-x86_64.zip` o
+  `antlexos-portable-windows-x86_64.zip` y ejecuta `lanzar.sh`/`lanzar.bat`
+  (o la variante `-uefi`). QEMU va incluido.
 
 ### 2.1 Con QEMU (recomendado para probar)
 
@@ -220,6 +231,9 @@ prueba automática que lo verifica en cada versión).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v1.0.0**: **empaquetado y distribución** — ISO9660+El Torito que
+  arranca en BIOS y UEFI sin xorriso, portables Linux/Windows con QEMU
+  incluido, release completo con sumas de verificación.
 - **v0.5.0**: **escritorio con ventanas** — ratón PS/2 con cursor,
   paneles TERMINAL y chat de AntLex, barra de tareas con menú INICIO,
   reloj y memoria; ventanas arrastrables con Explorador de archivos,

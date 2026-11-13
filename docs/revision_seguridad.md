@@ -206,3 +206,39 @@ por ventana de 40 tics con resta saturante; bucle del escritorio sin
 asignaciones; sin cadenas de formato controladas por el usuario; las
 coordenadas de la GUI que replica el arnés están en constantes compartidas
 documentadas en ambos lados.
+
+
+## REV-FASE6 — 2026-11-13 (pre-v1.0.0)
+
+- **Alcance**: `src/boot/stage1_cd.asm`, `tools/mkiso.zig`,
+  `tools/probar_iso.py`, `tools/empaquetar_portable.sh`,
+  `tools/resolver_dlls.py`, `build.zig` (paso mkiso), CI y release con
+  los nuevos artefactos.
+- **Veredicto**: **APTO CON OBSERVACIONES** → S1/S2 corregidos con
+  verificación; arranques ISO BIOS (6/6) y UEFI (7/7) y portable Linux
+  (BIOS y UEFI) ejecutados de verdad.
+- **Secretos**: NINGUNO (auditar.py pasa; el SHA-512 del instalador
+  qemu-w64 se verifica antes de extraerlo).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | BAJA | stage1_cd podía crecer más de 512 B sin darse cuenta: stage2_cd aterriza en 0x7E00 y lo pisaría en tiempo de arranque | ✅ Guardia de ensamblado (%if + %error en nasm): no compila si el código pasa de 512 B |
+| S2 | BAJA | Lanzadores de los portables con -hda sin formato: QEMU detecta raw, avisa y restringe escrituras del bloque 0 | ✅ -drive format=raw en los 4 lanzadores; portable Linux re-verificado |
+| S3 | BAJA (funcional, hallado en depuración) | Desalineación del kernel en la ISO: stage2_cd lee desde el LBA 4609 (+2048 B) pero el binario iba tras la cabecera de 512 B → el kernel se copiaba desplazado y triple-faulteaba en el primer UBSan | ✅ mkiso alinea el binario al sector de CD (cabecera en el LBA 4608, binario en el 4609); el bootloader UEFI lee +tamanio_sector y funciona igual en ambos medios |
+| H1 | INFO | Las DLLs del portable Windows se anclan a la versión 20260811 del instalador de Stefan Weil | Intencional y reproducible: versión fijada + SHA-512 verificado en cada empaquetado |
+| H2 | INFO | En CD puro las autopruebas bajan a 11/14 (sin disco ATA fallan ata_identify, alfs_montado y alfs_operaciones) | Comportamiento correcto documentado; el arnés de la ISO lo espera explícitamente |
+| H3 | INFO | El portable Windows no se puede EJECUTAR en un entorno Linux de CI | Verificación estructural completa (clausura por objdump + 104 DLLs + bats CRLF); la ejecución real queda para una máquina Windows |
+
+### Puntos verificados correctos (resumen)
+
+Tamaños acotados en mkiso (stage1/stage2 ≤ 1 sector, datos antes del
+kernel, FAT dentro de 9 MiB) con fallo ruidoso en tiempo de construcción;
+suma de verificación del catálogo con aritmética saturante (la aceptan
+SeaBIOS y EDK2); fechas fijas → ISO reproducible byte a byte; la marca
+ANTLEX del sector 0 identifica el medio para el bootloader UEFI sin
+confiar en el sistema de archivos; el extractor de portables excluye el
+directorio $PLUGINSDIR del NSIS; las descargas con --retry y caché
+idempotente; sin secretos; lanzadores con rutas relativas al propio
+script (funcionan desde cualquier directorio).

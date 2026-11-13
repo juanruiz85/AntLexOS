@@ -109,6 +109,17 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0067 | 2026-11-13 | 0.5.0-dev | Revisión de seguridad REV-FASE5 | ✅ | APTO CON OBSERVACIONES; S1 (tecla atascada tras bytes de ratón), S2 (borde del menú), S3, S4 corregidos; regresión S1 en el arnés (paso 2b) |
 | P-0068 | 2026-11-13 | 0.5.0-dev | Limpieza del terminal en el paso 2b del arnés | ❌ | «bspc» no es un qcode de QEMU (rechazado en silencio): la línea quedó «aaaaaamostrar» — el qcode correcto es «backspace»; PASA de nuevo 28/28 |
 
+| P-0069 | 2026-11-13 | 1.0.0-dev | ISO: arranque BIOS (SeaBIOS + El Torito) | ❌ | strcmp de SeaBIOS exige NUL tras «EL TORITO SPECIFICATION» (rellenaba con espacios → código 5) |
+| P-0070 | 2026-11-13 | 1.0.0-dev | ISO: catálogo El Torito | ❌ | Clave 55AA y checksum intercambiados (la clave va en 30-31, no 28-29 → código 0xa) |
+| P-0071 | 2026-11-13 | 1.0.0-dev | ISO: kernel en RAM | ❌ | stage2_cd leía desde LBA 4609 (+2048) pero el binario iba pegado a la cabecera de 512 B: mkiso ahora alinea el binario al sector de CD |
+| P-0072 | 2026-11-13 | 1.0.0-dev | ISO: arranque UEFI (OVMF) | ❌ | EDK2 moderno no trae driver ISO9660: añadida sección El Torito 0xEF que expone la FAT16 embebida como partición |
+| P-0073 | 2026-11-13 | 1.0.0-dev | **Arranque ISO en BIOS** (`probar_iso.py`) | ✅ | 6/6: ESCRITORIO LISTO, cadena AB…J, ratón PS/2, 11/14 autopruebas (sin ATA), captura 26538 px |
+| P-0074 | 2026-11-13 | 1.0.0-dev | **Arranque ISO en UEFI** (OVMF) | ✅ | 7/7: [ANTLEX EFI] medio 2048 B, GOP 1280x800, ESCRITORIO LISTO, captura 32036 px |
+| P-0075 | 2026-11-13 | 1.0.0-dev | Portable Linux (arranque real) | ✅ | ZIP descomprimido: lanzar.sh → ANTLEX BOOT OK + ESCRITORIO LISTO; lanzar-uefi.sh → [ANTLEX EFI] + ESCRITORIO LISTO |
+| P-0076 | 2026-11-13 | 1.0.0-dev | Portable Windows (estructura) | ✅ | 146 archivos: exe + 104 DLLs (clausura por objdump), firmware, bats con CRLF; no ejecutable en entorno Linux |
+| P-0077 | 2026-11-13 | 1.0.0-dev | Corrección del CI de v0.5.0 | ⚠️ | El arnés del escritorio NO se ejecutó en el CI de v0.5.0 (un replace silencioso dejó ci.yml sin el paso); corregido con assert y re-verificado |
+| P-0078 | 2026-11-13 | 1.0.0-dev | Auditoría REV-FASE6 | ✅ | APTO CON OBSERVACIONES: S1 (guardia stage1_cd) y S2 (format=raw) corregidos; H1-H3 informativos |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
