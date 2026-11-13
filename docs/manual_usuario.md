@@ -44,10 +44,11 @@ y arranca el PC desde el USB con BIOS legacy o UEFI. No instala nada: todo
 corre desde el medio. *Advertencia: proyecto experimental; pruébalo en
 hardware que no contenga datos importantes.*
 
-## 3. Usar la consola (v0.3.0)
+## 3. Usar la consola (v0.4.0)
 
-La consola tiene un intérprete real con **25 comandos** en español (y alias
-en inglés). El símbolo del sistema muestra el directorio actual:
+La consola tiene un intérprete real con **26 comandos** en español (y alias
+en inglés), incluido `antlex` para hablar con la IA del sistema. El símbolo
+del sistema muestra el directorio actual:
 `antlex:/> ` (raíz) o `antlex:/ejemplos> ` (dentro de la carpeta).
 
 Consejos rápidos: **↑/↓** recorren el historial, **TAB** autocompleta
@@ -81,14 +82,45 @@ comandos y nombres de archivo, **Ctrl+C** cancela la línea.
 | `fecha` (`date`) | fecha del reloj de tiempo real, en texto largo e ISO (UTC) |
 | `hora` (`time`) | hora actual (UTC) y tiempo de encendido |
 | `historia` (`history`) | historial numerado de comandos (también con ↑/↓) |
-| `pruebas` (`test`) | ejecuta las 12 autopruebas del sistema y las muestra en pantalla |
+| `pruebas` (`test`) | ejecuta las 13 autopruebas del sistema y las muestra en pantalla |
+| `antlex` (`ai`) | habla con la IA del sistema (ver sección 3.5) |
 | `eco` (`echo`) | repite el texto que escribas |
 | `limpiar` (`cls`) | borra la pantalla |
 | `teclado es` / `teclado us` | cambia la distribución del teclado |
 | `apagar` (`shutdown`) | sincroniza y apaga (en QEMU la ventana se cierra sola) |
 | `reiniciar` (`reboot`) | sincroniza y reinicia la máquina |
 
-### 3.3 Persistencia: importante
+### 3.3 Habla con AntLex, la IA del sistema (v0.4.0)
+
+AntLex es la IA embebida de AntLex OS: una red neuronal diminuta que vive
+dentro del kernel, sin nube ni conexión, y que **solo sabe del propio
+sistema**. Pregúntale en español:
+
+| Qué escribir | Qué responde |
+|---|---|
+| `antlex` | presentación y ejemplos de uso |
+| `antlex quien eres` | quién es (identidad, red embebida, sin FPU) |
+| `antlex cuanta memoria tienes` | memoria total y libre **en vivo** |
+| `antlex que hora es` / `antlex que dia es hoy` | reloj real del sistema |
+| `antlex que es alfs` · `antlex cuanto espacio queda` | el sistema de archivos y su espacio |
+| `antlex que comandos hay` | guía rápida de comandos |
+| `antlex por que` | explica su ÚLTIMA respuesta: palabras reconocidas, cobertura, intención, confianza y qué palabras empujaron la decisión (o la clave aprendida que coincidió) |
+| `antlex aprende <clave> = <respuesta>` | aprende un par nuevo (p. ej. `antlex aprende mi pin = 1234`) |
+| `antlex memoria` · `antlex olvida <clave>` | lista y borra lo aprendido |
+
+Detalles útiles:
+
+- No distingue mayúsculas, acentos ni palabras vacías: `antlex Cuánta
+  RAM hay?` funciona igual que `antlex cuanta memoria tienes`.
+- Lo aprendido se guarda en `/memoria/antlex.txt` (dentro de ALFS) y
+  **tiene prioridad** sobre la red: si preguntas exactamente la clave
+  aprendida, responde lo que le enseñaste. Como todo ALFS, haz
+  `sincronizar` (o `apagar`) para que sobreviva a un reinicio.
+- Si le preguntas algo que no es del sistema (el tiempo, fútbol, la
+  capital de Francia…) lo rechaza educadamente y te sugiere reformular
+  o enseñárselo con `aprende`. Ese límite es intencional.
+
+### 3.4 Persistencia: importante
 
 Los cambios en archivos viven en memoria hasta que ejecutas
 **`sincronizar`**, que escribe el volumen ALFS completo al disco. Si apagas
@@ -97,7 +129,7 @@ tus archivos siguen ahí aunque apagues el equipo (comprobado
 automáticamente en las pruebas del proyecto: el test reinicia la máquina y
 verifica el archivo).
 
-### 3.4 Reglas de los archivos y teclado
+### 3.5 Reglas de los archivos y teclado
 
 - Nombres de hasta 44 caracteres, sin espacios ni `/`. No se distinguen
   mayúsculas de minúsculas (`LEEME.TXT` = `leeme.txt`).
@@ -150,10 +182,13 @@ verifica el archivo).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v0.4.0**: IA embebida **AntLex** — red neuronal entrenada al compilar,
+  inferencia de punto fijo sin FPU, respuestas con datos en vivo, memoria
+  aprendida persistente (`aprende`/`olvida`), explicabilidad (`por que`) y
+  rechazo educado de temas ajenos. Autoprueba 13 (12 preguntas canónicas).
 - **v0.3.0**: intérprete completo — historial con flechas, autocompletado
   con TAB, reloj de tiempo real (`fecha`/`hora`), `sistema`, `buscar`,
-  `renombrar`, `pruebas` bajo demanda y `apagar`/`reiniciar` reales. La IA
-  del sistema se llamará **AntLex** (Fase 4).
+  `renombrar`, `pruebas` bajo demanda y `apagar`/`reiniciar` reales.
 - **v0.2.0**: sistema de archivos propio **ALFS** con persistencia real,
   driver ATA, 16 comandos (archivos, ayuda, teclado…), protocolo de
   arranque v2 y volumen inicial con manuales dentro del propio sistema

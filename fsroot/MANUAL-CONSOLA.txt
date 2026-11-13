@@ -19,6 +19,27 @@ Comandos (nombre espanol / alias ingles):
   espacio              / df          espacio libre del volumen ALFS
   sincronizar          / sync        escribe los cambios al disco
   teclado es|us                      cambia la distribucion del teclado
+  fecha                / date        fecha del reloj real (texto largo e ISO)
+  hora                 / time        hora UTC y tiempo de encendido
+  sistema              / sysinfo     resumen: CPU, memoria, disco, pantalla
+  historia             / history     historial de comandos (tambien flechas)
+  buscar <texto> [ruta] / find       busca archivos por nombre (recursivo)
+  renombrar <a> <b>    / mv          cambia el nombre de un archivo
+  pruebas              / test        ejecuta las 13 autopruebas
+  apagar               / shutdown    sincroniza y apaga (QEMU cierra solo)
+  reiniciar            / reboot      sincroniza y reinicia
+  antlex <pregunta>    / ai          pregunta a la IA del sistema
+
+LA IA DEL SISTEMA (antlex):
+
+  * 'antlex quien eres'      — quien es AntLex (IA embebida en el kernel)
+  * 'antlex cuanta memoria'  — responde con los datos REALES del sistema
+  * 'antlex que es alfs'     — explica el sistema de archivos
+  * 'antlex por que'         — explica su ultima respuesta (confianza y
+                               palabras que empujaron la decision)
+  * 'antlex aprende clave = respuesta' — le ensena algo nuevo
+  * 'antlex memoria' / 'antlex olvida clave' — gestiona lo aprendido
+  * Solo sabe de este sistema: temas ajenos los rechaza educadamente.
 
 Notas:
 

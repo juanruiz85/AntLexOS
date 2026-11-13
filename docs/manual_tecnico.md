@@ -276,6 +276,88 @@ primer_bloque (u32), nbloques (u32).
   puerto 0x70) y no se restaura; hoy es inofensivo porque el kernel no
   usa NMI (H-6 de REV-FASE3).
 
+## 5b. IA embebida AntLex (Fase 4, `src/kernel/antlex/` + `antlex.zig`)
+
+AntLex es la IA del sistema y su identidad: una red neuronal diminuta que
+se entrena AL COMPILAR y vive dentro del kernel. Sin nube, sin conexión y
+**sin FPU**: toda la inferencia es aritmética entera.
+
+### Tubería completa
+
+```
+pregunta → normalizar → tokens (sin vacías) → sinónimos
+        → bolsa de palabras contra VOCAB (143 palabras)
+        → capa oculta: 16 × ReLU          [pesos Q4.11]
+        → capa de salida: 24 intenciones  [pesos Q4.11]
+        → softmax entera (LUT exp2, comptime)
+        → aceptación: confianza ≥ 75% Y cobertura > 50%
+        → respuesta con datos en vivo (memoria/CPU/disco/ALFS/reloj/…)
+```
+
+### Ficheros y responsabilidades
+
+| Fichero | Rol |
+|---|---|
+| `antlex/corpus.zig` | datos PUROS: 161 ejemplos en 24 intenciones + 8 adversariales; solo lo usan el entrenador y las pruebas host (el kernel no lo embebe) |
+| `antlex/nucleo.zig` | núcleo PURO compartido: UTF-8/Latin-1→[a-z0-9], palabras vacías, sinónimos, red en punto fijo, softmax, CANON de 12 preguntas. Sin E/S, sin hardware, testeable en host |
+| `antlex/pesos.zig` | **GENERADO** por el entrenador: VOCAB (ordenado), INTENCIONES, W1/B1/W2/B2 en i16 Q4.11 y dimensiones. NO editar a mano |
+| `antlex.zig` | integración kernel: comandos, respuestas con datos en vivo, memoria aprendida (ALFS), explicabilidad |
+| `tools/entrenar_antlex.zig` | entrena en host (f64), cuantiza a Q4.11, verifica con la MISMA inferencia entera del kernel y emite `pesos.zig` |
+
+### Punto fijo (por qué Q4.11)
+
+- Pesos i16 **Q4.11**: 1.0 = 2048, rango ±15.99. Con la parada por margen
+  los pesos quedan ~±3 → sin clamp y con resolución 1/2048 (mejor que el
+  Q8.8 inicial, que clampaba en ±0.496 tras el sobreentrenamiento).
+- Activaciones/logits **Q16.16** (i32, clamp ±2^30; acumulaciones en i64).
+- `exp(-d) = 2^(-d·log₂e)` con una LUT comptime de 2^(-i/256) (256 u32):
+  precisión ~0.3%, sin FPU en runtime.
+
+### Entrenamiento (determinista)
+
+SGD plano (lr 0.15, decaimiento 0.995/época), inicialización por LCG de
+semilla fija, orden fijo del corpus y **parada por margen**: no basta con
+acertar el argmax; TODO el corpus debe clasificar con confianza ≥85% usando
+la red ya cuantizada (la que se embarca). Resultado: 40 épocas, 100%
+flotante, 100% cuantizada, canon 12/12 (99-100%), pesos ~±3.
+
+El momento 0.9 inicial se eliminó: multiplicaba ~10× el paso efectivo y la
+red se quedaba clavada en el 26%. Verificado en diagnóstico aparte.
+
+### Aceptación y rechazo (doble regla, falla cerrado)
+
+1. **Confianza ≥ 75%**: el canon clasifica con ≥94% y los adversariales
+   quedan ≤71% ("que tiempo va a hacer mañana", 68%).
+2. **Cobertura > 50%** de palabras en vocabulario: "como hacer una tarta
+   de queso" tiene "hacer" (comandos, ¡94% de confianza!) pero 1 de 3
+   palabras conocidas → rechazo.
+
+Con 0 palabras conocidas hay un tercer mensaje ("no reconocí ninguna
+palabra"). Los tres rechazos sugieren reformular o `antlex aprende`.
+
+### Memoria aprendida (`/memoria/antlex.txt`)
+
+`antlex aprende <clave> = <respuesta>` guarda hasta 64 pares (clave ≤ 47 B,
+respuesta ≤ 127 B) en RAM y los persiste en ALFS (crea `/memoria` la
+primera vez). El cotejo usa la **forma canónica** (normalizada + sin
+palabras vacías + un espacio entre tokens): "¿Cuál es tu color favorito?"
+casa con la clave "color favorito". Lo aprendido tiene PRIORIDAD sobre la
+red (decisión de diseño: es el espacio del usuario; ver REV-FASE4 H1).
+`antlex olvida <clave>` borra y reescribe; `antlex memoria` lista.
+
+### Explicabilidad (`antlex por que`)
+
+Tras cada pregunta AntLex guarda tokens, cobertura, intención, confianza,
+segunda opción y los **aportes grad×entrada** por palabra hacia la
+intención elegida (Σ_h relu'(z1[h])·w1[t][h]·w2[h][mejor], Q16.16): los
+tres mayores se muestran con su signo. Para lo aprendido muestra la clave
+que casó; para los rechazos, el motivo exacto.
+
+### Presupuesto
+
+pesos.zig ≈ 23 KB de .rodata; estado de AntLex ≈ 15 KB de .bss (64 pares
++ buffers); la inferencia son ~2k multiplicaciones enteras por pregunta.
+
 ## 6. Sistema de compilación
 
 `zig build` (recomendado `-Drelease=true` → ReleaseSafe):
@@ -291,6 +373,9 @@ primer_bloque (u32), nbloques (u32).
 | `probar-uefi` | igual con OVMF (pflash dual) |
 | `probar-alfs` | `tools/probar_alfs.py`: escribe un archivo por teclado QMP, sincroniza, REINICIA la VM y verifica la persistencia |
 | `probar-interprete` | `tools/probar_interprete.py`: sesión real de 22 pasos (historial, TAB, reloj, buscar, apagado ACPI) |
+| `probar-antlex` | `tools/probar_antlex.py`: conversación real de 24 pasos con la IA (intenciones, aprende/olvida, por qué, rechazos, ACPI) |
+| `entrenar` | reentrena AntLex y regenera `antlex/pesos.zig` (determinista) + `zig fmt` del generado |
+| `entrenar-verificar` | reentrena y compara los enteros de pesos.zig con lo commiteado (CI) |
 | `fuente` | regenera `fuente_datos.zig` desde `assets/unifont.hex` |
 
 Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).

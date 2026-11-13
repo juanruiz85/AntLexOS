@@ -38,15 +38,22 @@ auditoría en `docs/revision_seguridad.md`.
 - [x] Arnés `tools/probar_interprete.py`: sesión real de 22 pasos por QMP
       (incluye apagado limpio por ACPI verificado)
 
-## Fase 4 (v0.4.0) — IA embebida AntLex
-- [ ] `tools/entrenar_antlex.zig`: red diminuta (bolsa de palabras → capa
+## Fase 4 (v0.4.0) — IA embebida AntLex ✅
+- [x] `tools/entrenar_antlex.zig`: red diminuta (bolsa de palabras → capa
       oculta → intenciones) entrenada en build-time, pesos embebidos
-- [ ] Corpus en español con intenciones solo del sistema (~150 ejemplos)
-- [ ] `src/kernel/antlex/`: normalización (acentos), sinónimos, clasificación
-      con umbral de confianza, plantillas con datos en vivo (memoria, CPU…)
-- [ ] `antlex <pregunta>` + `antlex por que` (explicabilidad) + `antlex aprende`
-      (pares guardados en ALFS) — y rechazo educado de temas ajenos
-- [ ] Autoprueba de AntLex: preguntas cannicas → intención esperada
+      (SGD plano determinista, parada por margen, cuantización Q4.11)
+- [x] Corpus en español con intenciones solo del sistema
+      (161 ejemplos, 24 intenciones + 8 adversariales)
+- [x] `src/kernel/antlex/`: normalización (UTF-8/Latin-1, acentos), sinónimos,
+      clasificación con umbral de confianza 75% + cobertura >50%, respuestas
+      con datos en vivo (memoria, CPU, disco, ALFS, reloj, uptime…)
+- [x] `antlex <pregunta>` + `antlex por que` (explicabilidad) + `antlex aprende`
+      (pares guardados en ALFS, cotejo por forma canónica) + `antlex olvida`
+      + `antlex memoria` — y rechazo educado de temas ajenos (2 variedades)
+- [x] Autoprueba de AntLex: 12 preguntas canónicas → intención esperada
+      (autoprueba 13, 13/13 en cada arranque)
+- [x] Arnés `probar_antlex.py` (24 pasos por QMP) + pruebas host 32/32 +
+      `zig build entrenar-verificar` (reproducibilidad de los pesos)
 
 ## Fase 5 (v0.5.0) — Escritorio con ventanas
 - [ ] Ratón PS/2 (IRQ12) con cursor

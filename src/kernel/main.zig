@@ -21,6 +21,7 @@ const x86 = @import("x86.zig");
 const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
 const interprete = @import("interprete.zig");
+const antlex = @import("antlex.zig");
 
 // pila propia del kernel: 64 KiB en .bss
 var pila: [64 * 1024]u8 align(16) linksection(".bss") = undefined;
@@ -133,6 +134,11 @@ export fn kmain(boot_ptr: usize) noreturn {
 
     // batería de autopruebas (serial + resumen); el splash sigue en pantalla
     autoprueba.ejecutar(bi);
+
+    // IA embebida (Fase 4): pesos ya en .rodata; carga la memoria aprendida
+    serial.puts("init: antlex\n");
+    antlex.fijarBootInfo(bi);
+    antlex.init();
 
     // ventana de captura: 1 segundo con el splash visible (para pruebas y
     // para que un humano vea el logo)

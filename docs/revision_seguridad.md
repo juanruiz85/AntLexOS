@@ -122,3 +122,47 @@ ALFS; lidtq sobre 10 bytes = patrón canónico (sin alineación requerida);
 cmdPruebas con contadores que se resetean; cifras de docs verificadas
 contra el código (25 comandos, 12 autopruebas, 22→23 host, 21→22 pasos del
 arnés tras el paso nuevo); sin usos incorrectos de Zig 0.14.
+
+## REV-FASE4 — 2026-11-13 (pre-v0.4.0)
+
+- **Alcance**: Fase 4 completa — IA embebida AntLex: `src/kernel/antlex/`
+  (nucleo.zig, corpus.zig, pesos.zig generado), `src/kernel/antlex.zig`,
+  `tools/entrenar_antlex.zig`, `tools/probar_antlex.py`, integración en
+  intérprete/autopruebas/main, build steps `entrenar`/`entrenar-verificar`/
+  `probar-antlex`.
+- **Veredicto**: **APTO CON OBSERVACIONES** → todo lo relevante corregido
+  durante la fase y re-verificado por el arnés (24/24) y las 32 pruebas host.
+- **Secretos**: NINGUNO (auditar.py pasa; los pesos embebidos son solo
+  números Q4.11 del corpus público).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | ALTA (funcional) | El cotejo de la memoria aprendida comparaba la pregunta normalizada COMPLETA (con palabras vacías) contra la clave: "cual es tu color favorito" nunca casaba con "color favorito" | ✅ Clave de cotejo = forma canónica (normalizada + sin vacías + tokens unidos por espacio) en guardarPar/pregunta/olvida; verificado por el arnés (pasos 12-13) |
+| S2 | MEDIA | Prefijo "AntLex: " duplicado en los intents con datos en vivo (memoria, pantalla, espacio): "AntLex: AntLex: 479 MiB…" | ✅ Eliminado el prefijo interno (lo imprime pregunta()); verificado en serial |
+| S3 | MEDIA | Cuantización Q8.8 original clampaba pesos ≥0.496 tras el sobreentrenamiento (exactitud cuantizada 9%) y el reescalado t·k aplastaba la resolución (5%) | ✅ Formato Q4.11 (±15.99, paso 1/2048) + parada temprana por MARGEN (todo el corpus ≥85% con la red cuantizada): 100% cuantizada, canon 12/12 con ≥94%, pesos ~±3 sin reescalar |
+| S4 | MEDIA | LUT de exp2 con signo positivo: exp(-1) devolvía ≈0.68 (real 0.368) → softmax casi uniforme | ✅ LUT = 2^(-i/256) decreciente + prueba unitaria de extremos y exp(-1) (±1%) |
+| S5 | BAJA | normalizar asumía Latin-1; los literales Zig son UTF-8 ("Qué" → basura "a qua") | ✅ Decodificador UTF-8 (2-3 bytes) con fallback a byte crudo Latin-1 (lo que teclea el intérprete); pruebas con acentos, ¿¡ y ñ→n |
+| S6 | BAJA | `olvidar` imprimía la clave DESPUÉS de desplazar el array (mostraba el par siguiente o datos viejos) | ✅ Copia de la clave a un búfer local antes del shift |
+| S7 | BAJA | adversariales con una palabra de vocabulario ("como hacer una tarta de queso" → comandos 94%) | ✅ Doble regla de aceptación: confianza ≥75% Y cobertura de vocabulario >50% (51%); los 8 adversariales del corpus se rechazan y el canon 12/12 pasa |
+| S8 | BAJA | Comparación byte a byte de pesos.zig rota al pasar `zig fmt` (alinea columnas) | ✅ `--verificar` compara la SECUENCIA DE ENTEROS (insensible al formato); build step `entrenar` deja el archivo formateado |
+| H1 | INFO | Los pares aprendidos tienen PRIORIDAD sobre la red: un /memoria/antlex.txt precargado puede cambiar respuestas (p. ej. la identidad) | Comportamiento INTENCIONADO (espacio del usuario); documentado aquí y en el manual técnico |
+| H2 | INFO | `canonica()` trunca a 48 bytes: en teoría podría falsear un match | Imposible en la práctica: las claves miden ≤47 y la forma truncada mide exactamente 48 (verificado) |
+| H3 | INFO | Comentarios obsoletos "Q8.8" en el entrenador | ✅ Actualizados a Q4.11 |
+
+### Puntos verificados correctos (resumen)
+
+Aritmética entera del kernel sin FPU acotada (z1 ≤ 33.5M en i32 con 32
+tokens; z2 y aportes en i64 con clamp ±2^30; expMenosQ16 con ent<17 y
+@intCast sobre no-negativos); buffers de normalización/tokens/pares con
+guardas de longitud en cada escritura; memcpy de claves/valores solo tras
+validar 47/127 bytes; parseo de /memoria/antlex.txt acotado (64 KiB,
+64 pares, líneas sin '=' ignoradas); persistirPares compone en heap con
+tope por línea y crea el directorio si falta; sin cadenas de formato
+controladas por el usuario; sin bucles sin acotar; autoprueba 13
+(antlex_canonica 12/12) en cada arranque; determinismo del entrenador
+(LCG semilla fija, mismo binario → mismo archivo byte a byte; verificación
+semántica en CI); PESOS con asserts de dimensiones (un pesos.zig
+inconsistente pánica en el arranque, no en producción); tablas ES del
+arnés ('=' = shift+0, '/' = shift+7) verificadas contra teclado.zig.

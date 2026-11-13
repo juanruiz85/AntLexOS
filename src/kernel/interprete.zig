@@ -20,6 +20,7 @@ const pantalla = @import("pantalla.zig");
 const pit = @import("pit.zig");
 const reloj = @import("reloj.zig");
 const autoprueba = @import("autoprueba.zig");
+const antlex = @import("antlex.zig");
 
 const LARGO_LINEA = 120;
 const LARGO_RUTA = 96;
@@ -221,9 +222,7 @@ fn cmdAyuda(args: []const u8) void {
     }
     salida("Comandos de AntLex OS v");
     salida(version.VERSION);
-    salida(" (");
-    salida(version.ASISTENTE);
-    salida(" llega en la Fase 4):\n\n");
+    salida(" (la IA del sistema responde con: antlex <pregunta>):\n\n");
     for (COMANDOS) |c| {
         salida("  ");
         salidaColor(consola.COLOR_TITULO, c.nombre);
@@ -1121,6 +1120,10 @@ fn cmdReiniciar(args: []const u8) void {
     while (true) x86.hlt();
 }
 
+fn cmdAntLex(args: []const u8) void {
+    antlex.comando(args);
+}
+
 // ---------------------------------------------------------------------------
 // tabla de comandos
 // ---------------------------------------------------------------------------
@@ -1157,6 +1160,7 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "hora", .alias = "time", .ayuda = "hora y tiempo de encendido", .uso = "hora", .ejecutar = cmdHora },
     .{ .nombre = "historia", .alias = "history", .ayuda = "historial de comandos", .uso = "historia", .ejecutar = cmdHistoria },
     .{ .nombre = "pruebas", .alias = "test", .ayuda = "ejecuta las autopruebas", .uso = "pruebas", .ejecutar = cmdPruebas },
+    .{ .nombre = "antlex", .alias = "ai", .ayuda = "pregunta a la IA del sistema", .uso = "antlex <pregunta> | antlex por que | antlex aprende <clave> = <respuesta> | antlex memoria", .ejecutar = cmdAntLex },
     .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
     .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };

@@ -33,6 +33,9 @@ jobs:
       - name: Pruebas unitarias en host
         run: zig build test
 
+      - name: Reproducibilidad de los pesos de la IA (entrenar-verificar)
+        run: zig build entrenar-verificar
+
       - name: Prueba de arranque BIOS en QEMU (serial + capturas)
         env:
           TC: /noexiste
@@ -54,6 +57,11 @@ jobs:
           OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
         run: python3 tools/probar_alfs.py zig-out/antlexos.img build/pruebas_alfs --tiempo 120
 
+      - name: Prueba de la IA AntLex (conversación real por QMP)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_antlex.py zig-out/antlexos.img build/pruebas_antlex --tiempo 240
+
       - name: Auditoría de seguridad y calidad
         run: python3 tools/auditar.py
 
@@ -69,4 +77,5 @@ jobs:
             build/pruebas_uefi/*.png
             build/pruebas_uefi/serial.log
             build/pruebas_alfs/serial_alfs.log
+            build/pruebas_antlex/serial_antlex.log
           if-no-files-found: error

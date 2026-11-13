@@ -189,6 +189,54 @@ pub fn build(b: *std.Build) void {
     paso_probar_interp.dependOn(&probar_interp.step);
 
     // ------------------------------------------------------------------
+    // IA AntLex (Fase 4): preguntas reales, memoria aprendida, por qué
+    // ------------------------------------------------------------------
+    const probar_antlex = b.addSystemCommand(&.{ "python3", "tools/probar_antlex.py" });
+    probar_antlex.addArg(b.pathFromRoot("zig-out/antlexos.img"));
+    probar_antlex.addArg(b.pathFromRoot("build/pruebas_antlex"));
+    probar_antlex.addArg("--tiempo");
+    probar_antlex.addArg("180");
+    probar_antlex.step.dependOn(b.getInstallStep());
+    const paso_probar_antlex = b.step("probar-antlex", "Conversación real con AntLex por QMP: intenciones, aprende, por qué");
+    paso_probar_antlex.dependOn(&probar_antlex.step);
+
+    // ------------------------------------------------------------------
+    // IA AntLex (Fase 4): nucleo.zig y corpus.zig compartidos por el
+    // entrenador (host) y las pruebas; el kernel los importa relativamente.
+    // ------------------------------------------------------------------
+    const mod_antlex_nucleo = b.createModule(.{
+        .root_source_file = b.path("src/kernel/antlex/nucleo.zig"),
+    });
+    const mod_antlex_corpus = b.createModule(.{
+        .root_source_file = b.path("src/kernel/antlex/corpus.zig"),
+    });
+
+    const entrenar = b.addExecutable(.{
+        .name = "entrenar_antlex",
+        .root_source_file = b.path("tools/entrenar_antlex.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    entrenar.root_module.addImport("nucleo", mod_antlex_nucleo);
+    entrenar.root_module.addImport("corpus", mod_antlex_corpus);
+
+    const correr_entrenar = b.addRunArtifact(entrenar);
+    correr_entrenar.addArg(b.pathFromRoot("src/kernel/antlex"));
+    // el archivo generado pasa por `zig fmt` para que `zig fmt --check` en
+    // CI no lo rechace (solo alinea columnas; --verificar compara enteros)
+    const fmt_pesos = b.addSystemCommand(&.{ b.graph.zig_exe, "fmt" });
+    fmt_pesos.addFileArg(b.path("src/kernel/antlex/pesos.zig"));
+    fmt_pesos.step.dependOn(&correr_entrenar.step);
+    const paso_entrenar = b.step("entrenar", "Reentrena la IA AntLex y regenera pesos.zig (determinista)");
+    paso_entrenar.dependOn(&fmt_pesos.step);
+
+    const correr_entrenar_v = b.addRunArtifact(entrenar);
+    correr_entrenar_v.addArg(b.pathFromRoot("src/kernel/antlex"));
+    correr_entrenar_v.addArg("--verificar");
+    const paso_entrenar_v = b.step("entrenar-verificar", "Reentrena y compara pesos.zig con lo commiteado");
+    paso_entrenar_v.dependOn(&correr_entrenar_v.step);
+
+    // ------------------------------------------------------------------
     // Regeneración de la fuente bitmap (manual, para reproducibilidad)
     // ------------------------------------------------------------------
     const genf = b.addSystemCommand(&.{ b.graph.zig_exe, "run", "tools/genfont.zig", "--" });

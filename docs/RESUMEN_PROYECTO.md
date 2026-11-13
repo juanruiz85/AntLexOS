@@ -21,7 +21,7 @@ propietario: la identidad de la IA es la del propio sistema, embebida en
 comandos **en español con alias en inglés**; licencia **GPL-3.0**;
 **un tag+release por fase** (v0.1.0 → v1.0.0).
 
-## Estado actual (v0.3.0, Fase 3 terminada)
+## Estado actual (v0.4.0, Fase 4 terminada)
 
 ✅ Fase 1 (v0.1.0): bootloader BIOS completo + kernel con consola gráfica.
 ✅ Fase 1b (v0.1.1): bootloader UEFI propio (BOOTX64.EFI + FAT16 con mkfat).
@@ -31,11 +31,51 @@ comandos **en español con alias en inglés**; licencia **GPL-3.0**;
 ✅ Fase 3 (v0.3.0): **intérprete completo** — 25 comandos ES+alias EN,
    historial con flechas, autocompletado TAB (comandos y rutas), reloj RTC
    (`fecha`/`hora`/Zeller con pruebas), `sistema` (sysinfo), `buscar`
-   recursivo, `renombrar`, `pruebas` bajo demanda (12/12 con eco en
-   pantalla), `apagar`/`reiniciar` reales (ACPI verificado: QEMU cierra
-   solo). Arnés `probar_interprete.py` con 22 pasos. Pruebas host 23/23.
+   recursivo, `renombrar`, `pruebas` bajo demanda, `apagar`/`reiniciar`
+   reales (ACPI verificado: QEMU cierra solo). Arnés de 22 pasos.
+✅ Fase 4 (v0.4.0): **IA embebida AntLex** — red neuronal (bolsa → 16
+   ocultas → 24 intenciones) entrenada al compilar por
+   `tools/entrenar_antlex.zig` (determinista, parada por margen ≥85%) y
+   embebida en Q4.11 **sin FPU**; inferencia entera en `antlex/nucleo.zig`
+   (UTF-8/Latin-1, vacías, sinónimos, softmax con LUT); respuestas con
+   datos en vivo; **memoria aprendida persistente** en /memoria/antlex.txt
+   (aprende/olvida/memoria, cotejo por forma canónica); **explicabilidad**
+   (`antlex por que`: tokens, cobertura, confianza, aportes grad×entrada);
+   rechazo educado de temas ajenos (confianza 75% + cobertura >50%);
+   comando `antlex` (alias `ai`) → **26 comandos**; autoprueba 13
+   (12 canónicas); pruebas host **32/32**; arnés `probar_antlex.py`
+   **24/24**; `entrenar-verificar` en CI (reproducibilidad).
 
-Siguiente: **Fase 4 (v0.4.0) IA embebida AntLex** (ver `TODO.md`).
+Siguiente: **Fase 5 (v0.5.0) escritorio con ventanas** (ver `TODO.md`).
+
+Lecciones Fase 4 para quien continúe:
+1. El kernel NO tiene FPU: toda la IA es punto fijo. Q4.11 (±15.99, paso
+   1/2048) para pesos y Q16.16 para activaciones; acumular en i64 y
+   clampear a ±2^30 antes de i32.
+2. Softmax entera: exp(-d) = 2^(-d·log₂e) con LUT comptime de 2^(-i/256).
+   OJO al signo: la LUT lleva el exponente NEGATIVO (unPositive LUT daba
+   exp(-1)≈0.68 y softmax casi uniforme — bug real, ver REV-FASE4 S4).
+3. `zig build probar*` recompila en DEBUG (sin -Drelease) y el kernel
+   debug NO cabe en el límite de 512 KiB del cargador UEFI: los arneses
+   van contra la imagen release (invoca los .py directamente o con
+   -Drelease=true). En BIOS el debug arranca; en UEFI no.
+4. Los literales de cadena de Zig son UTF-8 pero el teclado PS/2 produce
+   Latin-1: la normalización acepta AMBOS (decodificador UTF-8 con
+   fallback a byte crudo).
+5. El cotejo de "memoria aprendida" usa la forma canónica (normalizada +
+   SIN palabras vacías): normalizar a secas NO quita el/la/de/que y las
+   claves nunca casaban (REV-FASE4 S1).
+6. Momentum 0.9 en SGD con bolsa de palabras dispersa no convergía (26%
+   clavado): el paso efectivo ~10×. SGD plano + parada por margen, mejor.
+7. Cuantizar destruye redes sobreentrenadas (pesos >rango se clampaban):
+   parar cuando TODO el corpus clasifica con margen en la red YA
+   cuantizada — no cuando el argmax acierta.
+8. El formato `{d:>6}` de Zig 0.14 emite '+' en positivos: los literales
+   "+713," no compilan. Formato manual en el generador de pesos.zig; y el
+   archivo generado pasa por `zig fmt` (build step), así que la
+   verificación compara ENTEROS, no bytes.
+9. En el mapa ES: '=' es shift+0 y '/' es shift+7 (QMP send-key con
+   combos ["shift","0"]) — el qcode "slash" produce '-' en ES.
 
 Lecciones Fase 3 para quien continúe:
 1. `switch` de Zig no admite solapamiento entre un caso puntual y un

@@ -260,10 +260,10 @@ def main():
         intro(qmp)
         paso("borrar", "borrado notas2.tmp", desde_ref=ref)
 
-        # 10) pruebas bajo demanda (12/12)
+        # 10) pruebas bajo demanda (13/13)
         teclear(qmp, "pruebas")
         intro(qmp)
-        paso("pruebas: resumen", "AUTOPRUEBAS 12/12 correctas", desde_ref=ref)
+        paso("pruebas: resumen", "AUTOPRUEBAS 13/13 correctas", desde_ref=ref)
 
         # 11) apagado limpio por ACPI: el proceso debe salir solo
         teclear(qmp, "apagar")

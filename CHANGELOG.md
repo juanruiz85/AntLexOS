@@ -1,3 +1,47 @@
+## [v0.4.0] - 2026-11-13
+
+### Fase 4 — IA embebida AntLex (misma identidad que el sistema)
+
+- **AntLex, la IA del sistema, ya responde**: red neuronal diminuta
+  (bolsa de palabras → 16 ocultas ReLU → softmax) **entrenada al
+  compilar** y embarcada como pesos de punto fijo **Q4.11 sin FPU**
+  (`src/kernel/antlex/pesos.zig`, generado por `tools/entrenar_antlex.zig`).
+- **Corpus español propio**: 161 ejemplos en 24 intenciones, todas sobre el
+  propio sistema (memoria, CPU, pantalla, disco, ALFS, espacio, fecha, hora,
+  uptime, comandos, teclado, arranque, licencia, version, identidad, autor,
+  archivos, sincronizar, apagar, reiniciar, saludo, despedida, gracias…).
+- **Inferencia 100% entera en el kernel**: normalización (UTF-8 y Latin-1,
+  minúsculas, sin acentos), palabras vacías, sinónimos (ram→memoria,
+  cpu→procesador…), softmax con LUT exp2 comptime, umbral de confianza 75%
+  y **cobertura de vocabulario >50%**: los temas ajenos se rechazan
+  educadamente (los 8 adversariales del corpus, verificados).
+- **Respuestas con datos en vivo**: memoria real, CPUID, framebuffer,
+  disco ATA, bloques/entradas libres de ALFS, reloj RTC, uptime y modo de
+  arranque (BIOS/UEFI/CD) — no hay respuestas prefabricadas.
+- **Memoria aprendida persistente**: `antlex aprende <clave> = <respuesta>`
+  guarda pares en `/memoria/antlex.txt` (ALFS); la clave coteja por forma
+  canónica (sin mayúsculas, acentos ni palabras vacías), tiene prioridad
+  sobre la red y sobrevive a reinicios con `sincronizar`/`apagar`.
+  `antlex memoria` lista; `antlex olvida <clave>` borra.
+- **Explicabilidad**: `antlex por que` cuenta la última respuesta — tokens
+  reconocidos, cobertura, intención y confianza con umbral, segunda opción
+  y aportes grad×entrada de cada palabra (o la clave aprendida que casó).
+- **Rechazo educado** en dos variedades: sin palabras conocidas y cobertura
+  insuficiente, con sugerencia de reformular o enseñar.
+- **Autoprueba 13** (`antlex_canonica`): 12 preguntas canónicas (10 de
+  sistema + 2 ajenas) → **13/13 autopruebas** en cada arranque.
+- **Pruebas host: 32/32** (4 del núcleo + corpus 100% con la inferencia de
+  punto fijo + canon 12/12 + adversariales 8/8 + coherencia de pesos).
+- **Determinismo y trazabilidad**: el entrenador (SGD plano, LCG de semilla
+  fija, **parada por margen** ≥85% con la red cuantizada) produce el mismo
+  archivo byte a byte; `zig build entrenar-verificar` comprueba en CI que
+  lo commiteado sigue siendo reproducible.
+- **Arnés `tools/probar_antlex.py`**: conversación real de **24 pasos** por
+  QMP con teclado español (intenciones en vivo, aprende/pregunta/persiste/
+  lista/olvida, por qué en sus tres modos, rechazos, 13/13 y apagado ACPI).
+- Auditoría **REV-FASE4** registrada (8 hallazgos + 3 informativos, todo
+  corregido); 26 comandos en el intérprete (nuevo `antlex`, alias `ai`).
+
 ## [v0.3.0] - 2026-11-11
 
 ### Fase 3 — Intérprete de comandos completo

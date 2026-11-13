@@ -83,6 +83,15 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0045 | 2026-11-11 | 0.3.0 | CI GitHub (push main + tag v0.3.0) | ✅ | Workflow CI en verde: build + fmt + 23/23 host + arranque BIOS + auditoría; Release workflow en verde |
 | P-0046 | 2026-11-11 | 0.3.0 | **Release v0.3.0 en GitHub** | ✅ | Publicado automáticamente: antlexos-v0.3.0-x86_64.img (29 MB) + src.tar.gz + NOTAS.md + SHA256SUMS — https://github.com/juanruiz85/AntLexOS/releases/tag/v0.3.0 |
 
+| P-0047 | 2026-11-13 | 0.4.0-dev | **Entrenador AntLex** (`tools/entrenar_antlex.zig`) | ✅ | 161 ejemplos/24 intenciones; exactitud flotante 100% (40 épocas, parada por margen ≥85%); exactitud cuantizada 100% con la inferencia entera del kernel; pesos ~±3 en Q4.11 sin reescalado |
+| P-0048 | 2026-11-13 | 0.4.0-dev | Canon y adversariales (entrenador + host) | ✅ | Canon 12/12 (10 intenciones con confianza 99-100%, 2 ajenas rechazadas); 8/8 adversariales rechazados (umbral 75% + cobertura >50%: "como hacer una tarta de queso" 94% de confianza pero 1/3 de cobertura → rechazo) |
+| P-0049 | 2026-11-13 | 0.4.0-dev | Pruebas host de la IA | ✅ | 32/32: 4 del núcleo (normalización UTF-8/Latin-1, tokens/sinónimos, exp(-1)≈0.368±1%), corpus 100%, canon 12/12, adversariales 8/8, coherencia de dimensiones de pesos.zig |
+| P-0050 | 2026-11-13 | 0.4.0-dev | Autoprueba 13 `antlex_canonica` (BIOS) | ✅ | 13/13 autopruebas en el arranque; "init: antlex" carga la memoria aprendida |
+| P-0051 | 2026-11-13 | 0.4.0-dev | Arranque UEFI con IA embebida | ✅ | 13/13 autopruebas por UEFI (OVMF), GOP 1280x800; el kernel crece ~24 KB (pesos) y sigue bajo el límite de 512 KiB del cargador |
+| P-0052 | 2026-11-13 | 0.4.0-dev | **Arnés de conversación AntLex** (`probar_antlex.py`) | ✅ | 24/24 pasos: presentación, saludo/identidad/memoria/hora/versión/ALFS/espacio en vivo, por qué (red con confianza y aportes), aprende → pregunta con clave canónica → por qué (aprendida) → sincronizar → archivo /memoria/antlex.txt verificado → lista → 2 rechazos → olvida → memoria vacía → 13/13 → apagado ACPI (QEMU cierra solo) |
+| P-0053 | 2026-11-13 | 0.4.0-dev | Determinismo del entrenador | ✅ | Dos ejecuciones del mismo binario → pesos.zig byte a byte idéntico; `entrenar-verificar` compara los 2735 enteros (insensible a zig fmt) |
+| P-0054 | 2026-11-13 | 0.4.0-dev | Regresiones tras REV-FASE4 | ✅ | Host 32/32, BIOS 13/13 + capturas, UEFI 13/13, persistencia ALFS, arnés del intérprete 22 pasos (marcador 13/13), zig fmt --check limpio, auditar.py sin hallazgos |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del

@@ -11,6 +11,9 @@ const mem = @import("kernel/mem.zig");
 const reloj = @import("kernel/reloj.zig");
 const alfs_formato = @import("kernel/alfs_formato.zig");
 const alfs_volumen = @import("kernel/alfs_volumen.zig");
+const nucleo = @import("kernel/antlex/nucleo.zig");
+const pesos = @import("kernel/antlex/pesos.zig");
+const corpus = @import("kernel/antlex/corpus.zig");
 
 test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
@@ -20,6 +23,70 @@ test "alfs: ejecuta las pruebas del formato y del volumen" {
 
 test "reloj: ejecuta las pruebas del RTC (Zeller y formatos)" {
     _ = reloj;
+}
+
+// ---------------------------------------------------------------------------
+// IA AntLex (Fase 4)
+// ---------------------------------------------------------------------------
+
+test "antlex: ejecuta las pruebas del nucleo (normalización, tokens, exp)" {
+    // referenciar el módulo obliga a compilar sus bloques test
+    _ = nucleo;
+}
+
+fn clasificarEjemplo(texto: []const u8) nucleo.Resultado {
+    var nbuf: [nucleo.MAX_NORMALIZADO]u8 = undefined;
+    var toks: [nucleo.MAX_TOKENS][]const u8 = undefined;
+    const norm = nucleo.normalizar(texto, &nbuf);
+    const n = nucleo.tokenizar(norm, &toks);
+    return nucleo.clasificar(&pesos.PESOS, toks[0..n]);
+}
+
+fn indiceIntencion(nombre: []const u8) usize {
+    for (pesos.INTENCIONES, 0..) |v, i| {
+        if (std.mem.eql(u8, v, nombre)) return i;
+    }
+    unreachable; // el corpus y los pesos deben coincidir
+}
+
+test "antlex: pesos embebidos clasifican el corpus completo" {
+    // con la MISMA inferencia de punto fijo que corre en el kernel
+    var fallos: usize = 0;
+    for (corpus.EJEMPLOS) |ej| {
+        const r = clasificarEjemplo(ej.texto);
+        if (!r.aceptada or r.intencion != indiceIntencion(ej.intencion)) fallos += 1;
+    }
+    try std.testing.expectEqual(@as(usize, 0), fallos);
+}
+
+test "antlex: canon 12/12 (10 intenciones + 2 rechazos)" {
+    var aciertos: usize = 0;
+    for (nucleo.CANON) |c| {
+        const r = clasificarEjemplo(c.pregunta);
+        const ok = if (c.esperada) |esp|
+            (r.aceptada and std.mem.eql(u8, pesos.INTENCIONES[r.intencion], esp))
+        else
+            !r.aceptada;
+        if (ok) aciertos += 1;
+    }
+    try std.testing.expectEqual(nucleo.CANON.len, aciertos);
+}
+
+test "antlex: adversariales rechazados (no habla de temas ajenos)" {
+    for (corpus.ADVERSARIALES) |a| {
+        const r = clasificarEjemplo(a);
+        try std.testing.expectEqual(false, r.aceptada);
+    }
+}
+
+test "antlex: coherencia de los pesos generados" {
+    try std.testing.expectEqual(pesos.VOCAB.len * nucleo.OCULTAS, pesos.W1.len);
+    try std.testing.expectEqual(nucleo.OCULTAS, pesos.B1.len);
+    try std.testing.expectEqual(nucleo.OCULTAS * pesos.INTENCIONES.len, pesos.W2.len);
+    try std.testing.expectEqual(pesos.INTENCIONES.len, pesos.B2.len);
+    try std.testing.expect(pesos.INTENCIONES.len <= nucleo.MAX_INTENCIONES);
+    // las dimensiones de la red son las que el kernel asume
+    try std.testing.expectEqual(@as(usize, 16), nucleo.OCULTAS);
 }
 
 test "boot_info mide 80 bytes (76 campos + relleno)" {

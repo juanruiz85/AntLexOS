@@ -17,6 +17,7 @@ const version = @import("version.zig");
 const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
 const fmt = @import("alfs_formato.zig");
+const antlex = @import("antlex.zig");
 
 var pasan: u32 = 0;
 var fallan: u32 = 0;
@@ -156,6 +157,14 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
     // 12) reloj de tiempo real (CMOS)
     const f = reloj.leer();
     comprobar("reloj_rtc", reloj.valida(f), "fecha y hora del CMOS");
+
+    // 13) IA AntLex: las preguntas canónicas deben clasificar a su intención
+    // (y las ajenas, rechazarse) con la inferencia de punto fijo embebida
+    {
+        const c = antlex.autopruebaCanonica();
+        var dbuf: [64]u8 = undefined;
+        comprobar("antlex_canonica", c.aciertos == c.total, std.fmt.bufPrint(&dbuf, "{d}/{d} preguntas canonicas (red embebida)", .{ c.aciertos, c.total }) catch "preguntas canonicas");
+    }
 
     // resumen
     var nbuf: [48]u8 = undefined;
