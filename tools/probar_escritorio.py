@@ -37,6 +37,7 @@ BOTONES = {  # centros de los botones de la barra de tareas
     "explorador": (256, ALTO - 14),
     "editor": (338, ALTO - 14),
     "acerca": (402, ALTO - 14),
+    "adivina": (471, ALTO - 14),  # botón nuevo (Fase del manual de apps): x=436 an=70
 }
 MENU_Y = Y_BARRA - (5 * 20 + 8) - 2  # menú: 5 ítems de 20 px + borde
 MENU_ITEM = lambda i: (100, MENU_Y + 4 + i * 20 + 10)  # noqa: E731
@@ -258,6 +259,16 @@ def main():
         paso("menú cierra (2ª vez)", "gui: menu cerrado", ref, serial_path)
         qmp.tecla("esc"); time.sleep(0.5)
         paso("Acerca cerrada con ESC", "gui: ventana cerrada Acerca de", ref, serial_path)
+
+        # 10b) juego Adivina (manual de aplicaciones): abrir, un intento, cerrar
+        r.clic(*BOTONES["adivina"])
+        paso("ventana Adivina", "gui: ventana abierta Adivina", ref, serial_path)
+        paso("foco Adivina", "gui: foco ventana Adivina", ref, serial_path)
+        paso("ronda nueva de Adivina", "gui: adivina nueva", ref, serial_path)
+        teclear_con_igual(qmp, "50"); qmp.tecla("ret"); time.sleep(0.6)
+        paso("intento de Adivina registrado", "gui: adivina intento", ref, serial_path)
+        qmp.tecla("esc"); time.sleep(0.5)
+        paso("Adivina cerrada con ESC", "gui: ventana cerrada Adivina", ref, serial_path)
 
         # 11) explorador: cerrar con [X]
         r.clic(40 + 360 - 11, 48)

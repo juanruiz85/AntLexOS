@@ -313,3 +313,144 @@ test "explorador: añadir, mover y seleccionar" {
     explMover(&e, -99); // hasta deseleccionar
     try testing.expect(e.seleccionada() == null);
 }
+
+// ===========================================================================
+// juego «Adivina» (ejemplo del manual de aplicaciones, docs/manual_aplicaciones.md)
+// ===========================================================================
+
+pub const ADIVINA_MAX_DIG = 3;
+pub const ADIVINA_MSG = 48;
+
+/// Resultado de una tecla procesada (lo usa la GUI para las trazas de serie).
+pub const AdivinaEvento = enum { nada, intento, acierto, nueva };
+
+pub const Adivina = struct {
+    semilla: u32 = 0x1234_5678, // avanza en cada ronda (xorshift)
+    secreto: u16 = 0, // 1..100
+    intentos: u16 = 0,
+    acertado: bool = false,
+    intento: [ADIVINA_MAX_DIG]u8 = undefined,
+    intento_len: u8 = 0,
+    msg: [ADIVINA_MSG]u8 = undefined,
+    msg_len: u8 = 0,
+
+    pub fn msgStr(self: *const Adivina) []const u8 {
+        return self.msg[0..self.msg_len];
+    }
+
+    pub fn intentoStr(self: *const Adivina) []const u8 {
+        return self.intento[0..self.intento_len];
+    }
+};
+
+fn advMsg(a: *Adivina, txt: []const u8) void {
+    const n = @min(txt.len, ADIVINA_MSG);
+    @memcpy(a.msg[0..n], txt[0..n]);
+    a.msg_len = @intCast(n);
+}
+
+/// Inicia una ronda con semilla dada (determinista: probado en host).
+pub fn adivinaNueva(a: *Adivina, semilla: u32) void {
+    var x = semilla | 1; // xorshift32: nunca 0
+    x ^= x << 13;
+    x ^= x >> 17;
+    x ^= x << 5;
+    a.semilla = x;
+    a.secreto = @intCast(1 + (x % 100));
+    a.intentos = 0;
+    a.acertado = false;
+    a.intento_len = 0;
+    advMsg(a, "Adivina un numero del 1 al 100");
+}
+
+/// Procesa una tecla: dígitos escriben la cifra, INTRO evalúa, 8 borra.
+/// Tras acertar, INTRO inicia una ronda nueva.
+pub fn adivinaTecla(a: *Adivina, c: u8) AdivinaEvento {
+    if (a.acertado) {
+        if (c != '\n') return .nada;
+        adivinaNueva(a, a.semilla);
+        return .nueva;
+    }
+    switch (c) {
+        '0'...'9' => {
+            if (a.intento_len < ADIVINA_MAX_DIG) {
+                a.intento[a.intento_len] = c;
+                a.intento_len += 1;
+            }
+            return .nada;
+        },
+        8 => { // borrar
+            if (a.intento_len > 0) a.intento_len -= 1;
+            return .nada;
+        },
+        '\n' => {
+            if (a.intento_len == 0) return .nada;
+            var valor: u16 = 0;
+            for (a.intento[0..a.intento_len]) |d| valor = valor * 10 + (d - '0');
+            a.intento_len = 0;
+            if (valor < 1 or valor > 100) {
+                advMsg(a, "Entre 1 y 100, por favor");
+                return .intento;
+            }
+            a.intentos += 1;
+            if (valor == a.secreto) {
+                a.acertado = true;
+                var buf: [ADIVINA_MSG]u8 = undefined;
+                const txt = std.fmt.bufPrint(&buf, "¡Correcto! En {d} intentos (era {d})", .{ a.intentos, a.secreto }) catch "¡Correcto!";
+                advMsg(a, txt);
+                return .acierto;
+            }
+            advMsg(a, if (valor < a.secreto) "El numero es MAYOR" else "El numero es MENOR");
+            return .intento;
+        },
+        else => return .nada,
+    }
+}
+
+test "adivina: ronda completa determinista" {
+    var a = Adivina{};
+    adivinaNueva(&a, 42);
+    const secreto = a.secreto;
+    try testing.expect(secreto >= 1 and secreto <= 100);
+    // dos intentos fallidos dirigidos (1 y 100 no pueden ser el secreto a la vez)
+    _ = adivinaTecla(&a, '5');
+    _ = adivinaTecla(&a, '0');
+    try testing.expectEqualStrings("50", a.intentoStr());
+    _ = adivinaTecla(&a, 8);
+    _ = adivinaTecla(&a, 8);
+    try testing.expectEqualStrings("", a.intentoStr());
+    for ("1\n") |c| _ = adivinaTecla(&a, c);
+    try testing.expectEqualStrings(if (1 < secreto) "El numero es MAYOR" else "El numero es MENOR", a.msgStr());
+    for ("100\n") |c| _ = adivinaTecla(&a, c);
+    try testing.expectEqual(@as(u16, 2), a.intentos);
+    // ahora acertamos con el valor secreto (máximo 3 cifras)
+    var buf: [4]u8 = undefined;
+    const s = std.fmt.bufPrint(&buf, "{d}\n", .{secreto}) catch unreachable;
+    for (s) |c| {
+        const ev = adivinaTecla(&a, c);
+        if (c == '\n') try testing.expectEqual(AdivinaEvento.acierto, ev);
+    }
+    try testing.expect(a.acertado);
+    try testing.expectEqual(@as(u16, 3), a.intentos);
+    // INTRO reinicia con otra semilla
+    const vieja = a.semilla;
+    try testing.expectEqual(AdivinaEvento.nueva, adivinaTecla(&a, '\n'));
+    try testing.expect(!a.acertado);
+    try testing.expect(a.semilla != vieja);
+}
+
+test "adivina: límites y teclas ignoradas" {
+    var a = Adivina{};
+    adivinaNueva(&a, 7);
+    _ = adivinaTecla(&a, '\n'); // vacío: no pasa nada
+    try testing.expectEqual(@as(u16, 0), a.intentos);
+    for ("999\n") |c| _ = adivinaTecla(&a, c);
+    try testing.expectEqualStrings("Entre 1 y 100, por favor", a.msgStr());
+    try testing.expectEqual(@as(u16, 0), a.intentos); // fuera de rango no cuenta
+    _ = adivinaTecla(&a, 'x'); // tecla rara ignorada
+    try testing.expectEqualStrings("", a.intentoStr());
+    // tres dígitos y no más
+    for ("123") |c| _ = adivinaTecla(&a, c);
+    _ = adivinaTecla(&a, '4');
+    try testing.expectEqualStrings("123", a.intentoStr());
+}

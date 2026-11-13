@@ -54,9 +54,9 @@ const C_TINTA_SUAVE = pantalla.rgb(0x9A, 0xAA, 0xBC);
 const C_ACENTO = pantalla.rgb(0x5B, 0x9B, 0xF0);
 const C_ALERTA = pantalla.rgb(0xF2, 0xB8, 0x66);
 
-pub const TipoApp = enum(u2) { explorador = 0, editor = 1, acerca = 2 };
+pub const TipoApp = enum(u2) { explorador = 0, editor = 1, acerca = 2, adivina = 3 };
 
-const NOMBRE_APP = [3][]const u8{ "Explorador", "Editor", "Acerca de" };
+const NOMBRE_APP = [4][]const u8{ "Explorador", "Editor", "Acerca de", "Adivina" };
 
 /// Botones de la barra de tareas (coordenadas replicadas por el arnés).
 const AN_BOTON: u32 = 24; // alto
@@ -67,6 +67,7 @@ const BOTONES = [_]struct { x: u32, an: u32, texto: []const u8 }{
     .{ .x = 208, .an = 96, .texto = "Explorador" },
     .{ .x = 308, .an = 60, .texto = "Editor" },
     .{ .x = 372, .an = 60, .texto = "Acerca" },
+    .{ .x = 436, .an = 70, .texto = "Adivina" },
 };
 
 // ---------------------------------------------------------------------------
@@ -87,13 +88,15 @@ const Ventana = struct {
     // editor
     edit: apps.Editor = .{},
     edit_idx: ?u16 = null,
+    // juego Adivina (manual de aplicaciones)
+    adv: apps.Adivina = .{},
 };
 
 var escritorio_activo = false;
 var foco: Foco = .terminal;
 var foco_ventana: TipoApp = .explorador;
 // se inicializan en init() (así el array entero vive en .bss, no en .data)
-var ventanas: [3]Ventana = undefined;
+var ventanas: [4]Ventana = undefined;
 var menu_abierto = false;
 
 // arrastre de ventana
@@ -238,6 +241,7 @@ pub fn init() void {
     ventanas[@intFromEnum(TipoApp.explorador)] = .{ .x = 40, .y = 40, .an = 360, .al = 330 };
     ventanas[@intFromEnum(TipoApp.editor)] = .{ .x = 150, .y = 90, .an = 480, .al = 330 };
     ventanas[@intFromEnum(TipoApp.acerca)] = .{ .x = 240, .y = 130, .an = 380, .al = 300 };
+    ventanas[@intFromEnum(TipoApp.adivina)] = .{ .x = 330, .y = 170, .an = 340, .al = 230 };
 
     dibujarTodo();
     dibujarCursor();
@@ -374,6 +378,7 @@ fn tituloVentana(t: TipoApp, buf: []u8) []const u8 {
     const v = &ventanas[@intFromEnum(t)];
     return switch (t) {
         .explorador => std.fmt.bufPrint(buf, "Explorador de archivos", .{}) catch "Explorador",
+        .adivina => std.fmt.bufPrint(buf, "Adivina — juego del numero", .{}) catch "Adivina",
         .editor => blk: {
             const base = if (v.edit.nombre_len > 0) v.edit.nombreStr() else "(sin archivo)";
             break :blk std.fmt.bufPrint(buf, "Editor — {s}{s}", .{ base, if (v.edit.modificado) " *" else "" }) catch "Editor";
@@ -402,7 +407,22 @@ fn dibujarVentana(t: TipoApp) void {
         .explorador => dibujarExplorador(v, x, y),
         .editor => dibujarEditor(v, x, y),
         .acerca => dibujarAcerca(x, y),
+        .adivina => dibujarAdivina(v, x, y),
     }
+}
+
+fn dibujarAdivina(v: *Ventana, x: u32, y: u32) void {
+    const a = &v.adv;
+    // mensaje de estado (mayor/menor/¡correcto!)
+    textoLim(x + 6, y + ALT_TITULO_V + 8, a.msgStr(), if (a.acertado) C_ACENTO else C_TEXTO, v.an - 12);
+    // cifra en curso y marcador
+    var buf: [64]u8 = undefined;
+    const linea = std.fmt.bufPrint(&buf, "Tu numero: [{s: >3}]", .{a.intentoStr()}) catch "?";
+    texto(x + 8, y + ALT_TITULO_V + 34, linea, C_ACENTO);
+    var buf2: [64]u8 = undefined;
+    const stats = std.fmt.bufPrint(&buf2, "Intentos: {d}", .{a.intentos}) catch "?";
+    texto(x + 8, y + ALT_TITULO_V + 54, stats, C_TEXTO);
+    texto(x + 6, y + v.al - 14, if (a.acertado) "INTRO otra ronda · ESC cerrar" else "0-9 cifra · INTRO probar · ESC cerrar", C_TINTA_SUAVE);
 }
 
 fn dibujarExplorador(v: *Ventana, x: u32, y: u32) void {
@@ -510,6 +530,10 @@ fn abrirVentana(t: TipoApp) void {
     }
     if (t == .explorador) explListar(v);
     enfocarVentana(t);
+    if (t == .adivina) { // ronda nueva tras el foco: el orden de trazas lo espera el arnés
+        apps.adivinaNueva(&v.adv, @truncate(pit.leerTics()));
+        serial.puts("gui: adivina nueva\n");
+    }
 }
 
 fn cerrarVentana(t: TipoApp) void {
@@ -674,6 +698,20 @@ fn procesarTecla(c: u8) void {
                 .acerca => {
                     if (c == teclado.ESC) cerrarVentana(.acerca);
                 },
+                .adivina => {
+                    if (c == teclado.ESC) {
+                        cerrarVentana(.adivina);
+                        return;
+                    }
+                    const ev = apps.adivinaTecla(&ventanas[@intFromEnum(TipoApp.adivina)].adv, c);
+                    switch (ev) {
+                        .nada => {},
+                        .intento => serial.puts("gui: adivina intento\n"),
+                        .acierto => serial.puts("gui: adivina acierto\n"),
+                        .nueva => serial.puts("gui: adivina nueva\n"),
+                    }
+                    dibujarTodo();
+                },
             }
         },
     }
@@ -794,6 +832,7 @@ fn procesarClic(x: i32, y: i32) void {
                     3 => abrirVentana(.explorador),
                     4 => abrirVentana(.editor),
                     5 => abrirVentana(.acerca),
+                    6 => abrirVentana(.adivina),
                     else => {},
                 }
                 dibujarTodo();
