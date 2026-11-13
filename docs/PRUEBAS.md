@@ -92,6 +92,9 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0053 | 2026-11-13 | 0.4.0-dev | Determinismo del entrenador | ✅ | Dos ejecuciones del mismo binario → pesos.zig byte a byte idéntico; `entrenar-verificar` compara los 2735 enteros (insensible a zig fmt) |
 | P-0054 | 2026-11-13 | 0.4.0-dev | Regresiones tras REV-FASE4 | ✅ | Host 32/32, BIOS 13/13 + capturas, UEFI 13/13, persistencia ALFS, arnés del intérprete 22 pasos (marcador 13/13), zig fmt --check limpio, auditar.py sin hallazgos |
 
+| P-0055 | 2026-11-13 | 0.4.0 | CI GitHub (push main + tag v0.4.0) | ✅ | CI en verde: fmt + build + 32/32 host + entrenar-verificar (pesos reproducibles) + arranque BIOS + UEFI + persistencia ALFS + **arnés AntLex 24/24** + auditoría; Release workflow en verde |
+| P-0056 | 2026-11-13 | 0.4.0 | **Release v0.4.0 en GitHub** | ✅ | Publicado automáticamente: antlexos-v0.4.0-x86_64.img (29 MiB) + src.tar.gz + NOTAS.md + SHA256SUMS — https://github.com/juanruiz85/AntLexOS/releases/tag/v0.4.0 |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
