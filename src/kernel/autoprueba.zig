@@ -18,6 +18,7 @@ const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
 const fmt = @import("alfs_formato.zig");
 const antlex = @import("antlex.zig");
+const raton = @import("raton.zig");
 
 var pasan: u32 = 0;
 var fallan: u32 = 0;
@@ -164,6 +165,20 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
         const c = antlex.autopruebaCanonica();
         var dbuf: [64]u8 = undefined;
         comprobar("antlex_canonica", c.aciertos == c.total, std.fmt.bufPrint(&dbuf, "{d}/{d} preguntas canonicas (red embebida)", .{ c.aciertos, c.total }) catch "preguntas canonicas");
+    }
+
+    // 14) ratón PS/2: decodificación de paquetes y acotado del cursor
+    {
+        var ok14 = true;
+        var mov = raton.decodificar(.{ 0x08, 40, 0 });
+        ok14 = ok14 and mov.dx == 40 and mov.dy == 0 and mov.botones == 0;
+        mov = raton.decodificar(.{ 0x38, 0xE2, 0xFD }); // dx negativo
+        ok14 = ok14 and mov.dx == -30 and mov.dy == -3;
+        mov = raton.decodificar(.{ 0x09, 0, 0 });
+        ok14 = ok14 and mov.botones == 1; // botón izquierdo
+        ok14 = ok14 and raton.decodificar(.{ 0x48, 1, 1 }).desborde; // overflow
+        ok14 = ok14 and raton.acotar(-25, 0, 1023) == 0 and raton.acotar(4096, 0, 1023) == 1023;
+        comprobar("raton_paquetes", ok14, "decodificacion y acotado PS/2");
     }
 
     // resumen

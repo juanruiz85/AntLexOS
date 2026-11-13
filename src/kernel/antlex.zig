@@ -22,17 +22,29 @@ const boot_info = @import("boot_info.zig");
 const alfs = @import("alfs.zig");
 const fmt = @import("alfs_formato.zig");
 const ata = @import("ata.zig");
+const gui = @import("gui.zig");
 
 // ---------------------------------------------------------------------------
 // salida (consola + serie, como el intérprete)
 // ---------------------------------------------------------------------------
 
 fn salida(txt: []const u8) void {
-    consola.puts(txt);
+    // en el escritorio (Fase 5) las respuestas van al panel de chat;
+    // siempre se reflejan por el puerto serie (arneses)
+    if (gui.enEscritorio()) {
+        gui.chatEscribir(txt);
+    } else {
+        consola.puts(txt);
+    }
     serial.puts(txt);
 }
 
 fn salidaColor(color: u32, txt: []const u8) void {
+    if (gui.enEscritorio()) {
+        gui.chatEscribir(txt); // el chat usa su propio estilo
+        serial.puts(txt);
+        return;
+    }
     const previo = consola.estiloActual();
     consola.fijarEstilo(.{ .tinta = color, .fondo = previo.fondo });
     consola.puts(txt);

@@ -6,6 +6,7 @@ const x86 = @import("x86.zig");
 const serial = @import("serial.zig");
 const pit = @import("pit.zig");
 const teclado = @import("teclado.zig");
+const raton = @import("raton.zig");
 
 pub const Marco = extern struct {
     r15: u64,
@@ -163,6 +164,7 @@ export fn isrComun(marco: *const Marco) callconv(.C) void {
     switch (vec) {
         32 => pit.tick(), // IRQ0: temporizador
         33 => teclado.irq(), // IRQ1: teclado
+        44 => raton.irq(), // IRQ12: ratón PS/2
         else => {}, // sin manejo específico
     }
     eoi(vec);

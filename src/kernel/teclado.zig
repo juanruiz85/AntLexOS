@@ -13,6 +13,8 @@ pub const SUPRIMIR: u8 = 0x84;
 pub const INICIO: u8 = 0x85;
 pub const FIN: u8 = 0x86;
 pub const CTRL_C: u8 = 0x03; // interrupción de línea
+pub const F2: u8 = 0x87; // guardar (editor de la GUI)
+pub const ESC: u8 = 0x88; // cerrar ventana (GUI)
 
 // teclas muertas internas
 const M_AGUDO: u8 = 0x90;
@@ -221,7 +223,9 @@ pub fn pruebaFijarMuerta(m: Muerta) void {
 
 /// Manejador de IRQ1.
 pub fn irq() void {
-    if (x86.inb(0x64) & 0x01 == 0) return;
+    const st = x86.inb(0x64);
+    if (st & 0x01 == 0) return;
+    if (st & 0x20 != 0) return; // byte del RATÓN pendiente: lo lee IRQ12
     const sc = x86.inb(0x60);
 
     if (sc == 0xE0) {
@@ -266,6 +270,19 @@ pub fn irq() void {
         else => {},
     }
     if (soltar or code >= 128) return;
+
+    // teclas de la GUI (Fase 5): F2 guarda en el editor, ESC cierra ventanas
+    switch (code) {
+        0x3C => { // F2
+            empujar(F2);
+            return;
+        },
+        0x01 => { // ESC
+            empujar(ESC);
+            return;
+        },
+        else => {},
+    }
 
     const tabla: *const Tabla = if (!@atomicLoad(bool, &dist_es, .acquire)) &TABLA_US else &TABLA_ES;
     var c = tabla[code];

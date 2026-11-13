@@ -4,6 +4,13 @@ pub inline fn hlt() void {
     asm volatile ("hlt");
 }
 
+/// Lee RFLAGS (para saber si IF estaba activo antes de un cli).
+pub inline fn leerFlags() u64 {
+    return asm volatile ("pushfq; popq %[v]"
+        : [v] "=r" (-> u64),
+    );
+}
+
 pub inline fn cli() void {
     asm volatile ("cli");
 }

@@ -22,6 +22,7 @@ const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
 const interprete = @import("interprete.zig");
 const antlex = @import("antlex.zig");
+const gui = @import("gui.zig");
 
 // pila propia del kernel: 64 KiB en .bss
 var pila: [64 * 1024]u8 align(16) linksection(".bss") = undefined;
@@ -145,17 +146,22 @@ export fn kmain(boot_ptr: usize) noreturn {
     serial.puts("SPLASH VISIBLE\n");
     pit.esperaTics(100);
 
-    // ---------------- intérprete de comandos (consola) ----------------
+    // ---------------- escritorio con ventanas (Fase 5) ----------------
     serial.puts("init: interprete\n");
+    interprete.init(bi);
+
+    serial.puts("init: gui\n");
+    gui.init(); // ratón PS/2 + paneles TERMINAL|CHAT + barra de tareas
+
     consola.fijarEstilo(.{ .tinta = consola.COLOR_TEXTO, .fondo = pantalla.rgb(0x0A, 0x0E, 0x16) });
-    consola.limpiar();
     consola.puts("AntLex OS v");
     consola.puts(version.VERSION);
-    consola.puts(" — consola grafica\n");
-    consola.puts("Escribe 'ayuda' para ver los comandos.\n\n");
+    consola.puts(" — TERMINAL (escribe 'ayuda')\n");
+    consola.puts("El chat de AntLex está a la derecha; las ventanas, en la\nbarra de tareas. Clic para cambiar el foco del teclado.\n\n");
 
-    interprete.init(bi);
-    interprete.bucle();
+    interprete.arrancar();
+    serial.puts("CONSOLA LISTA\n");
+    gui.bucle();
 }
 
 /// Pantalla de bienvenida gráfica (logo + versión).

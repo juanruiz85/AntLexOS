@@ -1179,7 +1179,7 @@ pub fn init(bi: *const boot_info.BootInfo) void {
     navegando = false;
 }
 
-fn prompt() void {
+pub fn prompt() void {
     const previo = consola.estiloActual();
     consola.fijarEstilo(.{ .tinta = consola.COLOR_TITULO, .fondo = previo.fondo });
     salida("antlex:");
@@ -1214,55 +1214,71 @@ fn ejecutarLinea() void {
 }
 
 /// Bucle principal del intérprete (no vuelve nunca).
+/// Prepara una línea nueva (lo llama la GUI y el propio bucle).
+pub fn iniciarLinea() void {
+    len = 0;
+    nav_pos = historia_num;
+    navegando = false;
+}
+
+/// Arranque en modo GUI: prompt + línea nueva (sin bloquear).
+pub fn arrancar() void {
+    prompt();
+    iniciarLinea();
+}
+
+/// Procesa UNA tecla (lo llama la GUI cuando el TERMINAL tiene el foco).
+/// En '\n' ejecuta la línea y devuelve el prompt, igual que el bucle clásico.
+pub fn tecla(c: u8) void {
+    switch (c) {
+        '\n', '\r' => {
+            consola.putc('\n');
+            serial.putc('\n');
+            guardarHistorial(linea[0..len]);
+            ejecutarLinea();
+            iniciarLinea();
+            prompt();
+        },
+        8 => {
+            if (len > 0) {
+                len -= 1;
+                consola.putc(8);
+                serial.putc(8);
+            }
+        },
+        '\t' => autocompletar(),
+        teclado.FLECHA_ARRIBA => flechaArriba(),
+        teclado.FLECHA_ABAJO => flechaAbajo(),
+        teclado.FLECHA_IZQ, teclado.FLECHA_DER, teclado.SUPRIMIR, teclado.INICIO, teclado.FIN, teclado.F2, teclado.ESC => {},
+        teclado.CTRL_C => {
+            salida("^C\n");
+            iniciarLinea();
+            prompt();
+        },
+        else => {
+            // acepta ASCII imprimible y Latin-1 (ñ, acentos, ¿¡…);
+            // el rango C1 (0x80-0x9F) se descarta: es de control
+            if (len < linea.len and c >= 32 and c != 127 and (c < 0x80 or c >= 0xA0)) {
+                linea[len] = c;
+                len += 1;
+                consola.putc(c);
+                serial.putc(c);
+            }
+        },
+    }
+}
+
 pub fn bucle() noreturn {
     salida("CONSOLA LISTA\n");
+    prompt();
+    iniciarLinea();
     while (true) {
-        prompt();
-        len = 0;
-        nav_pos = historia_num;
-        navegando = false;
-        var terminada = false;
-        while (!terminada) {
-            x86.hlt();
-            while (teclado.poll()) |c| {
-                switch (c) {
-                    '\n', '\r' => {
-                        consola.putc('\n');
-                        serial.putc('\n');
-                        guardarHistorial(linea[0..len]);
-                        terminada = true;
-                        break;
-                    },
-                    8 => {
-                        if (len > 0) {
-                            len -= 1;
-                            consola.putc(8);
-                            serial.putc(8);
-                        }
-                    },
-                    '\t' => autocompletar(),
-                    teclado.FLECHA_ARRIBA => flechaArriba(),
-                    teclado.FLECHA_ABAJO => flechaAbajo(),
-                    teclado.FLECHA_IZQ, teclado.FLECHA_DER, teclado.SUPRIMIR, teclado.INICIO, teclado.FIN => {},
-                    teclado.CTRL_C => {
-                        salida("^C\n");
-                        len = 0;
-                        terminada = true;
-                        break;
-                    },
-                    else => {
-                        // acepta ASCII imprimible y Latin-1 (ñ, acentos, ¿¡…);
-                        // el rango C1 (0x80-0x9F) se descarta: es de control
-                        if (len < linea.len and c >= 32 and c != 127 and (c < 0x80 or c >= 0xA0)) {
-                            linea[len] = c;
-                            len += 1;
-                            consola.putc(c);
-                            serial.putc(c);
-                        }
-                    },
-                }
-            }
-        }
-        ejecutarLinea();
+        x86.hlt();
+        while (teclado.poll()) |c| tecla(c);
     }
+}
+
+/// Apagado limpio desde la GUI (menú INICIO): sincroniza y apaga por ACPI.
+pub fn apagarSistema() void {
+    cmdApagar("");
 }

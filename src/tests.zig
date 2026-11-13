@@ -14,6 +14,8 @@ const alfs_volumen = @import("kernel/alfs_volumen.zig");
 const nucleo = @import("kernel/antlex/nucleo.zig");
 const pesos = @import("kernel/antlex/pesos.zig");
 const corpus = @import("kernel/antlex/corpus.zig");
+const raton = @import("kernel/raton.zig");
+const apps = @import("kernel/apps.zig");
 
 test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
@@ -164,4 +166,26 @@ test "regionHeap elige la mayor región usable" {
 test "mem: asignador secuencial alineado" {
     // sin init falla
     try std.testing.expectError(mem.Error.SinMemoria, mem.alloc(8, 8));
+}
+
+// ---------------------------------------------------------------------------
+// Escritorio (Fase 5): ratón y aplicaciones
+// ---------------------------------------------------------------------------
+
+test "raton: ejecuta las pruebas del driver (paquetes y acotado)" {
+    _ = raton;
+}
+
+test "apps: ejecuta las pruebas del editor y el explorador" {
+    _ = apps;
+}
+
+test "apps: editor serializa exactamente lo cargado" {
+    var e = apps.Editor{};
+    const poema = "AntLex OS v0.5.0\ncon escritorio, ventanas\ny raton PS/2.";
+    apps.editorCargar(&e, poema);
+    var buf: [256]u8 = undefined;
+    const n = apps.editorSerializar(&e, &buf);
+    try std.testing.expectEqualStrings(poema, buf[0..n]);
+    try std.testing.expect(!e.modificado);
 }
