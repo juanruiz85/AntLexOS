@@ -6,6 +6,7 @@ operativo desde cero en Zig. Cualquier aportación es bienvenida.
 ## Preparación
 
 ```bash
+sh tools/configurar_identidad.sh   # identidad de commits (juanruiz85), tras clonar
 # dependencias: zig 0.14.1, nasm, qemu-system-x86_64, python3
 zig build -Drelease=true   # construye zig-out/antlexos.img
 zig build test             # pruebas unitarias en host
