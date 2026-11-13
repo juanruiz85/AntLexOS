@@ -93,6 +93,9 @@ msg_err:        db "ANTLEX: error leyendo stage2 del CD", 0
 
 ; ------------------- relleno hasta exactamente 2048 bytes -------------------
 ; (la imagen entera es lo que la BIOS copia en 0x7C00; el área 0x7E00 en
-; adelante la sobrescribe stage2_cd al cargarse, y este código vive por
-; debajo de 0x7DFF)
+; adelante la sobrescribe stage2_cd al cargarse, y este código DEBE vivir
+; por debajo de 0x7DFF — de lo contrario se pisaría a sí mismo)
+%if ($-$$) > 512
+%error "el codigo de stage1_cd no cabe en 512 B: stage2_cd aterriza en 0x7E00"
+%endif
 times 2048-($-$$) db 0x00
