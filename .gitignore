@@ -10,3 +10,4 @@ ktest.o
 *.o
 *.elf
 __pycache__/
+core

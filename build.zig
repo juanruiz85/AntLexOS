@@ -79,6 +79,12 @@ pub fn build(b: *std.Build) void {
     const out_s2cd = c2cd.addOutputFileArg("stage2_cd.bin");
     c2cd.addFileArg(b.path("src/boot/stage2.asm"));
 
+    // stage1_cd: imagen de arranque El Torito «sin emulación» (2048 B)
+    const c1cd = b.addSystemCommand(&.{"nasm"});
+    c1cd.addArgs(&.{ "-f", "bin", "-o" });
+    const out_s1cd = c1cd.addOutputFileArg("stage1_cd.bin");
+    c1cd.addFileArg(b.path("src/boot/stage1_cd.asm"));
+
     // ------------------------------------------------------------------
     // Partición FAT16 (EFI/BOOT/BOOTX64.EFI + LEEME.txt)
     // ------------------------------------------------------------------
@@ -131,6 +137,33 @@ pub fn build(b: *std.Build) void {
     b.getInstallStep().dependOn(&inst_img.step);
     const inst_s2cd = b.addInstallFile(out_s2cd, "stage2_cd.bin");
     b.getInstallStep().dependOn(&inst_s2cd.step);
+
+    // ------------------------------------------------------------------
+    // ISO9660 + El Torito (Fase 6): arranca en BIOS (catálogo El Torito)
+    // y UEFI (OVMF lee /EFI/BOOT/BOOTX64.EFI del sistema de archivos)
+    // ------------------------------------------------------------------
+    // se construye como ejecutable (como mkalfs): así zig rastrea el fuente
+    // y regenera la ISO al cambiar mkiso.zig (un SystemCommand con «zig run»
+    // no ve los cambios del fuente, solo de los argumentos)
+    const mkiso_exe = b.addExecutable(.{
+        .name = "mkiso",
+        .root_source_file = b.path("tools/mkiso.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    const correr_mkiso = b.addRunArtifact(mkiso_exe);
+    const iso = correr_mkiso.addOutputFileArg("antlexos.iso");
+    correr_mkiso.addFileArg(img);
+    correr_mkiso.addFileArg(out_s1cd);
+    correr_mkiso.addFileArg(out_s2cd);
+    correr_mkiso.addFileArg(efi.getEmittedBin());
+    correr_mkiso.addFileArg(b.path("fsroot/LEEME.txt"));
+    correr_mkiso.addFileArg(out_fat);
+    correr_mkiso.step.dependOn(&c1cd.step);
+    correr_mkiso.step.dependOn(&c2cd.step);
+    correr_mkiso.step.dependOn(&correr_mkalfs.step);
+    const inst_iso = b.addInstallFile(iso, "antlexos.iso");
+    b.getInstallStep().dependOn(&inst_iso.step);
 
     // ------------------------------------------------------------------
     // Pruebas unitarias en host (tablas, ALFS, LEX…)
