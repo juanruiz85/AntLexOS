@@ -63,7 +63,7 @@ zig build probar                  # arranca en QEMU sin interfaz y valida serial
 | 4 | v0.4.0 | IA embebida AntLex (red neuronal) | ✅ |
 | 5 | v0.5.0 | Escritorio con ventanas, ratón y barra de tareas | ✅ |
 | 6 | v1.0.0 | ISO BIOS+UEFI, portables con QEMU, releases automatizados | ✅ |
-| — | v1.1.0-dev | Manual de aplicaciones + juego Adivina (primera app de terceros) | 🔨 |
+| — | v1.1.0 | Manual de aplicaciones + juego Adivina (primera app de terceros) | ✅ |
 
 Cada versión queda registrada en [CHANGELOG.md](CHANGELOG.md) y sus pruebas en [docs/PRUEBAS.md](docs/PRUEBAS.md).
 

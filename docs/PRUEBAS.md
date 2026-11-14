@@ -126,6 +126,8 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 
 | P-0082 | 2026-11-14 | 1.1.0 | Documentación de la Fase 4 publicada | ✅ | docs/informe-fase-4-v0.4.0.md: el informe de la IA embebida pasa del registro local al repositorio |
 
+| P-0083 | 2026-11-14 | 1.1.0 | Batería completa de liberación v1.1.0 | ✅ | Re-ejecutada sobre la build final 1.1.0: host 44/44 · boot BIOS/UEFI · escritorio 33/33 · ISO BIOS 6/6 y UEFI 7/7 · ALFS · AntLex IA 24/24 · auditar.py · fmt (detalles en REV-v1.1.0) |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del

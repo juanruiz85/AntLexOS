@@ -3,7 +3,7 @@
 Cómo crear aplicaciones y juegos para AntLex OS, con el juego **Adivina**
 (como ejemplo real del repositorio) paso a paso.
 
-> Versión del documento: v1.1.0-dev · El ejemplo vive en
+> Versión del documento: v1.1.0 · El ejemplo vive en
 > `src/kernel/apps.zig` (lógica), `src/kernel/gui.zig` (ventana) y
 > `tools/probar_escritorio.py` (prueba). Captura: `docs/img/juego-adivina.png`.
 
