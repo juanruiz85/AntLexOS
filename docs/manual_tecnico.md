@@ -1,4 +1,4 @@
-# Manual técnico — AntLex OS v1.0.0
+# Manual técnico — AntLex OS v1.3.0
 
 Documento de referencia interna para desarrollar y depurar el sistema.
 Público: quien quiera entender cómo funciona por dentro o continuar el
@@ -378,13 +378,13 @@ un `redibujar()` completo. El panel TERMINAL es la instancia por defecto
 una segunda instancia. Las ventanas pueden tapar un panel y, al apartarse,
 el panel se repinta desde la rejilla.
 
-**GUI (`gui.zig`)**: escritorio 60/40 con paneles + barra de tareas de
-siete botones (INICIO, TERMINAL, CHAT, Explorador, Editor, Acerca y
-Adivina) —
-28 px; foco terminal/chat/ventana por clic; ventanas (una por app) con
-arrastre acotado, orden Z (la enfocada se pinta última), cierre [X]/ESC y
-doble clic en el explorador (ventana de 40 tics). Cursor de ratón en XOR
-(auto-inverso). Reloj y memoria de la barra refrescados por segundo. El
+**GUI (`gui.zig`)**: nació en la Fase 5 como escritorio 60/40 con paneles
+y una barra de tareas de siete botones; **desde la Fase 8 es el escritorio
+clásico** (Program Manager, grupos, iconos, menús y minimizar a icono —
+ver §5f). De la Fase 5 se conserva: foco terminal/chat/ventana por clic,
+ventanas (una por app) con arrastre acotado, orden Z (la enfocada se pinta
+última), cierre ✕/ESC y doble clic (umbral de 40 tics). Cursor de ratón en
+XOR (auto-inverso). El
 teclado se enruta según el foco: `interprete.tecla()` (extraída del bucle
 clásico), la línea del chat o la ventana activa. En modo escritorio
 `antlex.salida` escribe en el panel de chat (siempre refleja por serie).
@@ -453,6 +453,62 @@ instalador oficial de Stefan Weil (SHA-512 verificado) con 7zz estático y
 `resolver_dlls.py` computa la clausura exacta de DLLs por importaciones
 recursivas de objdump (104 DLLs).
 
+## 5f. Escritorio clásico (Fase 8, `gui.zig` + `iconos.zig`)
+
+**Modelo de ventanas**: array fijo `ventanas[N_VENTANAS]` indexado por el
+enum `TipoApp` (explorador 0, editor 1, acerca 2, adivina 3, app 4,
+terminal 5, chat 6, grupo_principal 7, grupo_accesorios 8). **No hay
+z-order dinámico**: las no enfocadas se dibujan en orden de índice (índice
+alto = encima) y la enfocada la última; el enrutado de clics sigue el mismo
+criterio (primero la enfocada, luego índice descendente), así que el foco
+hace de "traer al frente" sin mover nada. `refocar()` reparte el foco tras
+cerrar/minimizar a la primera abierta y visible por orden de enum.
+
+**Cromo**: barra de título de 16 px (azul marino con foco, gris sin),
+botones ✕ ▲ ▼ de 16×14 en `x+an-18/-36/-54`, icono del programa en `x+2`
+(doble clic cierra), doble clic en el título alterna maximizada, relieve
+3D biselado y sombra tras la activa. Bordes de 5 px inician el
+redimensionado por lado o esquina; el arrastre por título fija la
+geometría al soltar (traza `gui: ventana movida/redimensionada`).
+
+**Minimizar a icono**: las minimizadas se pintan como iconos en la franja
+inferior (ranuras de 92 px desde x=12, y=alto-72; dibujo + nombre) y se
+restauran con doble clic o clic+INTRO (`clicIconoEscritorio`).
+
+**Menús**: un único estado emergente (`menuAbrir`/`clicMenu`, ítems de
+18 px, ancho por el texto): control ▼ en `(x+an-60, y+16)` (Restaurar,
+Mover, Tamaño, Minimizar, Maximizar, Cerrar), Archivo en `(x+6, y+32)`
+(Apagar, Cerrar grupo) y Ventana en `(x+78, y+32)` (Cascada, Mosaico +
+lista de abiertas) para los grupos. Mover/Tamaño abren una edición por
+teclado (flechas, INTRO fija, ESC deshace) con la geometría original
+guardada. Un menú abierto captura el siguiente clic y ESC lo cierra.
+
+**Alt+Tab / Alt+F4 / Alt+Espacio**: Alt+Tab cicla el foco por enum
+ascendente saltando las cerradas y restaurando las minimizadas, con
+recuadro del nombre medio segundo (traza `gui: alt-tab -> <nombre>`);
+Alt+F4 cierra la enfocada; Alt+Espacio abre su menú de control.
+
+**Cascada y mosaico** recolocan TODAS las abiertas y visibles (grupos
+incluidos): cascada las deja en 480×320 desfasadas 24 px; mosaico calcula
+`cols=ceil(sqrt(n))`, `filas=ceil(n/cols)` y reparte la pantalla en
+rejilla. Nada restaura posiciones (cerrar ventanas no mueve las restantes):
+los arneses cliquean los menús del PM en su posición ACTUAL.
+
+**Iconos de 32×32 por código** (`iconos.zig`): máscara 1 bpp + color por
+icono, dibujados con un bucle de bits — sin recursos externos ni formatos
+gráficos (nada que pueda estar bajo patente).
+
+**Detalle a conocer**: un clic sencillo en una barra de título inicia y
+suelta un arrastre nulo, así que se traza `gui: ventana movida <nombre>`
+aunque la ventana no se haya movido (los arneses lo tienen en cuenta; la
+traza del arrastre real llega después).
+
+**stage2 (bug GDT de la Fase 8)**: el kernel se copia ahora a 1 MiB en
+modo protegido ANTES de construir las tablas de páginas; antes el staging
+en modo real pisaba la zona de tablas (0x90000) y corrompía la GDT con
+kernels mayores de 512 KiB. Límites separados: archivo 576 KiB (BIOS) y
+archivo+bss 2 MiB (UEFI).
+
 ## 6. Sistema de compilación
 
 `zig build` (recomendado `-Drelease=true` → ReleaseSafe):
@@ -469,6 +525,9 @@ recursivas de objdump (104 DLLs).
 | `probar-alfs` | `tools/probar_alfs.py`: escribe un archivo por teclado QMP, sincroniza, REINICIA la VM y verifica la persistencia |
 | `probar-interprete` | `tools/probar_interprete.py`: sesión real de 22 pasos (historial, TAB, reloj, buscar, apagado ACPI) |
 | `probar-antlex` | `tools/probar_antlex.py`: conversación real de 24 pasos con la IA (intenciones, aprende/olvida, por qué, rechazos, ACPI) |
+| `probar-alx` | `tools/probar_alx.py`: ejecutables `.ALX` de punta a punta (20 pasos) |
+| `probar-escritorio` | `tools/probar_escritorio.py`: escritorio clásico de punta a punta (68 pasos: grupos, menús, minimizar, cascada/mosaico, Alt+Tab/F4, apagado ACPI) |
+| `probar-iso` | `tools/probar_iso.py`: la ISO arrancando en BIOS (6 pasos) y UEFI (7 pasos) |
 | `entrenar` | reentrena AntLex y regenera `antlex/pesos.zig` (determinista) + `zig fmt` del generado |
 | `entrenar-verificar` | reentrena y compara los enteros de pesos.zig con lo commiteado (CI) |
 | `fuente` | regenera `fuente_datos.zig` desde `assets/unifont.hex` |
@@ -477,10 +536,14 @@ Zig **0.14.1** fijado (`.zon` + CI descarga esa versión exacta).
 
 ## 7. Pruebas y CI
 
-- `ci.yml`: `zig fmt --check` → build → `test` → `probar` → `auditar.py` →
-  artefactos.
-- `release.yml`: en tags `v*` ejecuta lo mismo y publica en GitHub
-  Releases (imagen, fuente, SHA256SUMS; ISO y portables cuando existan).
+- `ci.yml` (pushes y PRs a main; en los tags NO corre — la batería la
+  ejecuta el workflow de Release): `zig fmt --check` → build → `test` →
+  `entrenar-verificar` → boot BIOS/UEFI → persistencia ALFS → IA →
+  `.ALX` → escritorio → ISO BIOS/UEFI → `auditar.py` → artefactos.
+- `release.yml`: en tags `v*` ejecuta la misma batería y publica en
+  GitHub Releases (imagen, ISO, fuente, portables Linux/Windows, notas y
+  SHA256SUMS). Lanzarla solo una vez por tag evita que dos QEMU con TCG
+  compitan por la CPU del runner y tumben pasos sensibles al tiempo.
 - Resultados registrados por versión en `docs/PRUEBAS.md`.
 
 ## 8. Depuración

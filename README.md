@@ -4,14 +4,14 @@
 
 - **Bootloaders 100% propios**: BIOS (MBR + stage2 en ensamblador) **y** UEFI (BOOTX64.EFI en Zig) — ni GRUB ni Limine
 - **Kernel en Zig** sin librería C ni runtime: GDT/IDT propias, PIC, PIT, teclado ES/US y ratón PS/2, framebuffer, consola gráfica
-- **Escritorio con ventanas**: barra de tareas, foco, arrastre, Explorador, Editor y el juego **Adivina** (Fase 5 + manual de aplicaciones)
+- **Escritorio clásico estilo Windows 3.11** (Fase 8): Administrador de Programas con grupos e iconos, ventanas con relieve 3D y barra de título azul, minimizar a icono sobre el escritorio, menús con cascada y mosaico, Alt+Tab y Alt+F4
 - **IA embebida (AntLex)**: red neuronal diminuta entrenada en build-time que solo sabe del propio sistema — panel CHAT o `antlex <pregunta>` en la consola
 - **ALFS (AntLex File System)**: sistema de archivos propio con persistencia real en disco
 - **Distribución completa**: ISO9660+El Torito que arranca en BIOS y UEFI **sin xorriso**, y portables Linux/Windows con QEMU incluido — descargar y probar sin instalar nada (Fase 6, v1.0.0)
 
-![Escritorio](docs/img/escritorio-v0.5.0.png)
+![Escritorio clásico](docs/img/escritorio-v1.3.0.png)
 
-*El escritorio: terminal a la izquierda, chat de AntLex a la derecha, barra de tareas abajo.*
+*El escritorio clásico de la Fase 8 tras organizar en cascada: ventanas con relieve 3D y barra de título azul marino, y al fondo el fondo sólido del escritorio. El grupo Programas concentra los iconos; las ventanas minimizadas bajan a iconos en la franja inferior.*
 
 ![Juego Adivina](docs/img/juego-adivina.png)
 
@@ -69,6 +69,7 @@ zig build probar                  # arranca en QEMU sin interfaz y valida serial
 | 6 | v1.0.0 | ISO BIOS+UEFI, portables con QEMU, releases automatizados | ✅ |
 | — | v1.1.0 | Manual de aplicaciones + juego Adivina (primera app de terceros) | ✅ |
 | — | v1.2.0 | **Ejecutables `.ALX`**: bit de ejecutable, asociaciones, loader, Calculadora y Reloj (Fase 7) | ✅ |
+| 8 | v1.3.0 | **Escritorio clásico estilo Windows 3.11**: Program Manager, iconos, minimizar a icono, menús, cascada/mosaico, Alt+Tab/F4 | ✅ |
 
 Cada versión queda registrada en [CHANGELOG.md](CHANGELOG.md) y sus pruebas en [docs/PRUEBAS.md](docs/PRUEBAS.md).
 

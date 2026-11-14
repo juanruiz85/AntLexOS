@@ -134,6 +134,13 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 
 | P-0087 | 2026-11-14 | 1.2.0 | Release v1.2.0: batería completa re-ejecutada + arnés .ALX en CI | ✅ | 54/54 host · probar_alx 20/20 · escritorio 41/41 · boot BIOS/UEFI · ISO 6/6 y 7/7 · ALFS · AntLex 24/24 · auditar · fmt — probar_alx añadido a ci.yml y release.yml |
 
+| P-0088 | 2026-11-14 | 1.3.0-dev | Kernel de la Fase 8 (commit a172477) en CI | ❌ | `zig fmt --check` falló en `gui.zig` e `iconos.zig` (código nuevo sin formatear) y el resto del trabajo se saltó; corregido en 5ea445d |
+| P-0089 | 2026-11-14 | 1.3.0-dev | Arnés del escritorio clásico (1ª pasada) | ❌ | 35 ok / 21 fallos: el ancla de orden nacía en «ESCRITORIO LISTO» pero los marcadores tempranos (splash, ventanas iniciales) salen ANTES; clics sobre puntos cubiertos por otras ventanas (el enrutado va foco-primero y luego índice descendente); menús cliqueados en posiciones previas a cascada/mosaico |
+| P-0090 | 2026-11-14 | 1.3.0-dev | Arnés del escritorio clásico (2ª pasada) | ❌ | 68/1: el paso «foco Programas tras cascada» era innecesario — clicar la barra de menú ya enfoca la ventana y `enfocarVentana` solo traza si el foco CAMBIA; eliminado el clic previo |
+| P-0091 | 2026-11-14 | 1.3.0-dev | **Arnés del escritorio clásico completo (Fase 8)** | ✅ | 68/68: arranque, splash, grupos e iconos, explorador (raíz→ejemplos→APPS), editor+F2 y verificación por `mostrar`, chat de AntLex, Adivina, grupo Accesorios cerrado con ✕, CALC.ALX con 12+34=46, minimizar/restaurar por icono, maximizar (doble clic) y ▲, arrastre, Alt+Tab→Terminal, Alt+F4, cascada, mosaico, cierre de apps con teclado, fondo teal por píxeles y apagado ACPI desde Archivo |
+| P-0092 | 2026-11-14 | 1.3.0-dev | Flake del CI del tag v1.2.0: «sincronizar» | ✅ | Causa raíz: el push del tag disparó CI y Release a la vez y dos QEMU con TCG compitieron por la CPU del runner; la escritura ATA de `sincronizar` superó los 25 s del arnés (el archivo sí se escribió: el paso siguiente pasó). Corregido: margen de 60 s en probar_antlex.py y ci.yml sin trigger de tags |
+| P-0093 | 2026-11-14 | 1.3.0 | **Release v1.3.0: batería completa re-ejecutada** | ✅ | Sobre la build final 1.3.0: host 54/54 · entrenar-verificar · boot BIOS/UEFI · ALFS · AntLex IA 24/24 · .ALX 20/20 · escritorio 68/68 · ISO BIOS 6/6 y UEFI 7/7 · auditar.py · fmt (detalles en REV-v1.3.0-dev) |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
@@ -145,3 +152,9 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
   `mouse_button`) porque `input-send-event` de QMP no llega al dispositivo
   PS/2 en QEMU 11 (verificado con sonda; P-0060). Las coordenadas de
   botones/menú/ventanas del arnés replican las constantes de gui.zig.
+- Desde la Fase 8 (P-0089) el arnés del escritorio garantiza el FOCO
+  antes de cada clic (el kernel enruta primero a la ventana enfocada y
+  luego por índice de enum descendente), busca los marcadores serie en
+  orden desde el splash, y cliquea los menús del Program Manager en su
+  posición ACTUAL (cascada y mosaico lo mueven). El cierre final de
+  ventanas usa Alt+Tab+Alt+F4: el teclado es inmune a las posiciones.

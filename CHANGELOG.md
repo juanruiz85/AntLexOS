@@ -1,6 +1,6 @@
-## [v1.3.0-dev] - Sin publicar
+## [v1.3.0] - 2026-11-14
 
-### Fase 8 (en curso): escritorio clásico estilo Windows 3.11
+### Escritorio clásico estilo Windows 3.11 (Fase 8)
 
 - **Escritorio tradicional**: fondo sólido verde azulado, ventanas con
   relieve biselado 3D, barra de título azul marino (gris sin foco),
@@ -8,7 +8,8 @@
   (doble clic cierra); doble clic en el título maximiza
 - **Minimizar a icono** sobre el escritorio (sin barra de tareas);
   doble clic restaura. **Alt+Tab** (recuadro con nombre), **Alt+F4**,
-  arrastre por el título y redimensionado por los bordes
+  **Alt+Espacio** (menú de control), arrastre por el título y
+  redimensionado por los bordes
 - **Administrador de Programas** (grupo Principal) + grupo Accesorios
   con iconos de 32×32 dibujados por código (`iconos.zig`); terminal y
   chat pasan a ser ventanas más
@@ -20,9 +21,15 @@
   staging con las tablas (0x90000) que corrompía la GDT con kernels
   > 512 KiB; límites separados: archivo 576 KiB (BIOS) y archivo+bss
   2 MiB (UEFI)
-- `probar_escritorio.py` reescrito para la nueva UI (40+ pasos, en
-  ajuste final); el resto de la batería pasa: boot BIOS/UEFI, ALFS,
-  IA 24/24, .ALX 20/20, ISO 6/6 y 7/7
+- **Pruebas**: `probar_escritorio.py` reescrito para la nueva UI —
+  68 pasos de punta a punta con marcadores serie en orden, clics
+  enrutados por foco y cierre final con teclado; batería completa
+  en verde: host 54/54, boot BIOS/UEFI, ALFS, IA 24/24, .ALX 20/20,
+  escritorio 68/68, ISO 6/6 y 7/7, auditoría y fmt
+- **CI**: el paso «sincronizar» del arnés de la IA sube su margen a
+  60 s y `ci.yml` deja de correr en tags (la batería en tags la
+  ejecuta Release; en el tag v1.2.0 ambas corrieron en paralelo y el
+  TCG cargado hizo fallar ese paso)
 
 ## [v1.2.0] - 2026-11-14
 

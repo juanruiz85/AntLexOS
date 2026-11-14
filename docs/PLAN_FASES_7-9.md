@@ -13,7 +13,7 @@
 | Fase | Qué | Versión | Estado |
 |------|-----|---------|--------|
 | 7 | Ejecutables `.ALX`: bit de ejecutable, asociaciones por extensión, loader y primeras apps | v1.2.0 | ✅ publicada (tag v1.2.0, release en GitHub) |
-| 8 | Escritorio estilo Windows 3.11: iconos, minimizar a icono, Program Manager, relieve 3D | v1.3.0 | ⏳ planificada |
+| 8 | Escritorio estilo Windows 3.11: iconos, minimizar a icono, Program Manager, relieve 3D | v1.3.0 | ✅ publicada (tag v1.3.0, release en GitHub) |
 | 9 | Red: driver virtio-net, TCP, TLS 1.3, HTTP, comando `descargar` y tienda de apps en GitHub | v1.4.0 | ⏳ planificada |
 
 ---
@@ -169,9 +169,9 @@ propietario; se reinterpreta con gráficos propios):
 
 | Hito | Qué | Commit | Estado |
 |---|---|---|---|
-| 8a | Kernel: cromo 3D, iconos, Program Manager, minimizar/maximizar, menús, Alt+Tab/F4, resize; stage2 copia en PM (bug GDT) | (este commit) | ✅ boot BIOS/UEFI + captura por píxeles + serial (movida, alt-tab, cascada, calculadora, grupos) |
-| 8b | Arnés `probar_escritorio.py` reescrito (40+ pasos): en ajuste de tiempos y solape Accesorios/Explorador | — | 🔨 |
-| 8c | Docs (manuales, PRUEBAS, README, REV-v1.3.0-dev) y batería final | — | ⏳ |
+| 8a | Kernel: cromo 3D, iconos, Program Manager, minimizar/maximizar, menús, Alt+Tab/F4, resize; stage2 copia en PM (bug GDT) | a172477 | ✅ boot BIOS/UEFI + captura por píxeles + serial (movida, alt-tab, cascada, calculadora, grupos); le faltó `zig fmt` (CI roto) |
+| 8b | Arnés `probar_escritorio.py` reescrito (68 pasos): tiempos, solapes por enrutado foco-primero y menús tras organizar | 5ea445d | ✅ 68/68 en dos pasadas de depuración (P-0089, P-0090) + fmt corregido + flake «sincronizar» del tag v1.2.0 cerrado |
+| 8c | Docs (manuales, PRUEBAS, README, REV-v1.3.0-dev) y batería final | (este commit) | ✅ batería completa en verde: host 54/54 · BIOS/UEFI · ALFS · IA 24/24 · ALX 20/20 · escritorio 68/68 · ISO 6/6 y 7/7 · auditar · fmt |
 
 ---
 

@@ -260,7 +260,9 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
 6. **Fase 6**: ✅ terminada (v1.0.0).
 7. **Fase 7**: ✅ terminada (v1.2.0) — ejecutables `.ALX` — bit de
    ejecutable en ALFS, asociaciones, loader+API, apps Calculadora y Reloj.
-8. **Fase 8** (v1.3.0): escritorio estilo Windows 3.11.
+8. **Fase 8**: ✅ terminada (v1.3.0) — escritorio estilo Windows 3.11:
+   Program Manager con grupos e iconos, minimizar a icono, relieve 3D,
+   menús con cascada/mosaico, Alt+Tab y Alt+F4.
 9. **Fase 9** (v1.4.0): red virtio-net + TLS 1.3 + `descargar` + tienda
    de apps en GitHub.
 

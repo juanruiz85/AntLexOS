@@ -348,3 +348,64 @@ valida ruta y usa las operaciones ALFS existentes); el doble clic sobre
 un `.ALX` sin bit muestra cómo instalarlo en vez de fallar en silencio;
 y la Calculadora trata el desbordamiento de i64 y la división por cero
 con estado de error (E) en vez de pánico.
+
+## REV-v1.3.0-dev — 2026-11-14 (Fase 8: escritorio clásico)
+
+- **Alcance**: `src/kernel/gui.zig` (escritorio clásico: enrutado de
+  clics foco-primero, menús, minimizar a icono, cascada/mosaico,
+  Alt+Tab/F4/Espacio, arrastre y redimensionado), `src/kernel/iconos.zig`
+  (nuevo, iconos 1 bpp), stage2 (copia del kernel en modo protegido),
+  `tools/probar_escritorio.py` (reescrito, 68 pasos),
+  `tools/probar_antlex.py` (margen de «sincronizar») y
+  `.github/workflows/ci.yml` (sin trigger de tags).
+- **Metodología**: `tools/auditar.py` (PASA: sin secretos, sin marcadores,
+  VERSION sincronizada) + revisión manual de gui.zig (enrutado, límites de
+  arrastre/menús, identificadores de doble clic, franja de iconos) +
+  batería completa re-ejecutada sobre la build final (ver abajo).
+
+### Verificación ejecutada
+
+| Prueba | Resultado |
+|---|---|
+| `zig build test` (host) | 54/54 |
+| `zig build entrenar-verificar` | pesos reproducibles (2735 enteros) · adversariales 8/8 |
+| `probar_escritorio.py` (reescrito) | 68/68 — dos pasadas de depuración (P-0089, P-0090) |
+| boot BIOS / UEFI · ALFS · AntLex 24/24 · .ALX 20/20 · ISO 6/6 y 7/7 · auditar · fmt | PASA |
+
+### Análisis de la nueva superficie
+
+La Fase 8 no añade caminos de ejecución de código externo: menús,
+atajos y clics solo invocan funciones ya existentes (abrir/cerrar
+ventanas, `interprete.apagarSistema`, que sincroniza antes del ACPI).
+Las interacciones nuevas se revisaron por sus límites:
+
+1. **Enrutado de clics determinista**: primero la ventana enfocada y
+   luego índice de enum descendente; un clic nunca "atraviesa" la
+   ventana enfocada. Sin estado dinámico de z-order que desordenar.
+2. **Arrastre y redimensionado acotados**: `aplicarArrastre` acota con
+   `clamp` (mínimos `AN/AL_VENTANA_MIN`, la ventana no sale de pantalla
+   salvo arrastrada a la izquierda con 80 px siempre visibles).
+3. **Iconos por código**: máscaras 1 bpp + color propias del proyecto —
+   sin recursos externos ni formatos gráficos (nada bajo patente).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | ALTA (aceptada, heredada de Fase 7) | Todo el sistema corre en ring 0, apps `.ALX` incluidas | Sin cambios en la Fase 8 (la GUI no amplía la superficie de ejecución); barrera de instalación y fuente única siguen vigentes |
+| S2 | BAJA | Un clic sencillo en una barra de título arma y suelta un arrastre nulo: la traza dice «ventana movida» aunque la ventana no se movió | Aceptado como cosmético de la traza: documentado en el manual técnico §5f y tenido en cuenta por el arnés (el marcador del arrastre real llega después) |
+| S3 | BAJA (proceso) | El commit de 8a (a172477) llegó sin pasar `zig fmt` y el CI falló en el primer paso, con la rama rota hasta 5ea445d | Corregido; el toolchain local del entorno (zig 0.14.1) permite verificar fmt/build/pruebas ANTES del push |
+| S4 | BAJA (flake) | El push del tag v1.2.0 disparó CI y Release a la vez: dos QEMU con TCG compitieron por la CPU y «sincronizar» (escritura ATA) superó sus 25 s | Margen de 60 s en probar_antlex.py y ci.yml sin trigger de tags (en tags la batería la ejecuta Release) — P-0092 |
+| H1 | INFO | El arnés duplica constantes de gui.zig (botones, celdas, menús y posiciones del PM tras cascada/mosaico) | Fragilidad de mantenimiento aceptada (mismo criterio que la Fase 5); las posiciones tras organizar se derivan de las fórmulas del kernel y se explican en el propio arnés |
+| H2 | INFO | Identificadores de doble clic `(tipo<<8)\|fila\|flags` con fila ≤ 255 (MAX_ENTRADAS = 256) | Cabe justo en el byte bajo; fila acotada por `expl.n` antes de usarse — verificado sin colisiones entre ventanas |
+
+### Puntos verificados correctos (resumen)
+
+`menuAbrir` acota x/y a pantalla; `xorPixel` acota el cursor al framebuffer;
+la franja de iconos minimizados cabe de sobra (9 ranuras × 92 px = 840 <
+1024); `altTab` copia con `@min` al búfer de nombre; el apagado desde
+Archivo pasa por `apagarSistema` (sincroniza ALFS antes del ACPI, y el
+arnés comprueba que QEMU muere solo); y el bug de stage2 (staging en modo
+real pisando las tablas de páginas en 0x90000) quedó cerrado copiando el
+kernel a 1 MiB en modo protegido antes de construir las tablas, verificado
+arrancando BIOS y UEFI con el kernel de 597 KiB de la Fase 8.

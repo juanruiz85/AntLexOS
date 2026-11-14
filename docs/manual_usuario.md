@@ -1,10 +1,9 @@
-# Manual de usuario — AntLex OS v1.0.0
+# Manual de usuario — AntLex OS v1.3.0
 
 Bienvenido a **AntLex OS**, un sistema operativo experimental que arranca
 en modo gráfico desde el primer instante. Este manual cubre la versión
-**0.3.0** (Fase 3: intérprete completo con historial, autocompletado y
-reloj real). El escritorio con ventanas y la asistente **AntLex** llegan en
-las Fases 4-5.
+**1.3.0** (Fase 8: escritorio clásico con Administrador de Programas,
+iconos y ventanas con relieve 3D).
 
 ## 1. Requisitos
 
@@ -154,29 +153,50 @@ verifica el archivo).
 - La distribución de teclado es **española** por defecto (ñ, acentos
   muertos, ¿¡); cambia a US con `teclado us`.
 
-## 3b. El escritorio (v0.5.0)
+## 3b. El escritorio clásico (v1.3.0)
 
-Al terminar el arranque ya no aparece solo la consola: hay un
-**escritorio** dividido en dos paneles con una **barra de tareas** abajo.
+Al terminar el arranque aparece el **escritorio clásico**: fondo de color
+sólido verde azulado, la ventana **Programas** (el Administrador de
+Programas) arriba a la izquierda y una ventana de **Terminal** lista para
+escribir. No hay barra de tareas: el protagonismo es de los iconos y las
+ventanas.
 
-- **Panel TERMINAL (izquierda)**: la consola de siempre. Escribe `ayuda`
-  para ver los comandos.
-- **Panel ANTLEX — CHAT (derecha)**: haz clic en él y escribe tu pregunta
-  (por ejemplo `quien eres`), pulsa INTRO y AntLex responde ahí. Las
-  preguntas hechas desde el terminal con `antlex …` también se responden
-  en este panel.
-- **Barra de tareas**: botón **INICIO** (menú con las aplicaciones y
-  Apagar), accesos a **TERMINAL**/**CHAT** y a las ventanas abiertas, y a
-  la derecha la **memoria libre** y el **reloj**.
-
-El foco del teclado lo marca el panel resaltado: haz **clic** sobre el
-panel o ventana donde quieras escribir.
+- **Administrador de Programas**: la ventana *Programas* agrupa los iconos
+  del grupo Principal — **Explorador**, **Editor**, **Terminal**, **Chat**,
+  **Acerca de** y **Accesorios**. Un doble clic abre el programa; el icono
+  **Accesorios** abre su propia ventana de grupo con **Adivina**,
+  **Calculadora** y **Reloj**. Los grupos se pueden cerrar y seguir
+  trabajando con las ventanas sueltas (se reabren con un doble clic).
+- **Chisme de ventana clásico**: barra de título azul marino cuando tiene
+  el foco (gris con texto atenuado si no), bordes con **relieve 3D** y
+  sombra tras la ventana activa. A la derecha de la barra: **▼** (menú de
+  control), **▲** (maximizar/restaurar) y **✕** (cerrar). A la izquierda
+  queda el icono del programa: un doble clic también cierra. Un doble clic
+  sobre la barra de título maximiza o restaura.
+- **Minimizar a icono**: al minimizar, la ventana se convierte en un
+  **icono en la franja inferior del escritorio**, con su dibujo y su
+  nombre debajo. Se restaura con un doble clic (o clic + INTRO) y se
+  cierra con su menú de control o **Alt+F4**.
+- **Menú de control ▼**: Restaurar, Mover, Tamaño (ambos se gobiernan
+  luego por teclado), Minimizar, Maximizar y Cerrar. También se abre con
+  **Alt+Espacio**.
+- **Organizar ventanas**: el menú **Ventana** de un grupo ofrece
+  **Cascada** y **Mosaico**, que recolocan todas las ventanas abiertas
+  (el propio grupo incluido) en diagonal o en rejilla, además de listar
+  las ventanas para enfocar cualquiera.
+- **Apagado**: menú **Archivo** del grupo → *Apagar el sistema* (o el
+  comando `apagar` en el terminal).
 
 ### Ventanas
 
+- **Terminal**: la consola de siempre. Escribe `ayuda` para ver los
+  comandos.
+- **Chat de AntLex**: haz clic en él y escribe tu pregunta (por ejemplo
+  `quien eres`), pulsa INTRO y AntLex responde ahí. Las preguntas hechas
+  desde el terminal con `antlex …` también se responden en este panel.
 - **Explorador de archivos**: navega por ALFS. Un clic selecciona,
   **INTRO** (o doble clic) abre; **RETROCESO** sube de directorio. Los
-  `.txt` se abren en el Editor.
+  `.txt` se abren en el Editor y los `.alx` se ejecutan.
 - **Editor de texto**: edita líneas (flechas, INICIO/FIN, SUPR,
   retroceso, INTRO para partir). **F2 guarda** el archivo en ALFS (el
   título muestra `*` mientras hay cambios sin guardar) y **ESC cierra**.
@@ -186,12 +206,11 @@ panel o ventana donde quieras escribir.
   inicia otra ronda tras acertar.
 - **Apps externas `.ALX`**: desde v1.2.0 el sistema abre aplicaciones del
   disco (la **Calculadora** y el **Reloj** vienen en `/APPS`). Se abren
-  con doble clic en el explorador o con `ejecutar`; el juego de Adivina
-  sigue siendo una app interna de la barra.
+  con doble clic en el explorador o con `ejecutar`.
 
-Arrastra una ventana por su **barra de título**; ciérrala con el botón
-**[X]** o con ESC. Si algo se solapa, la ventana con el foco se dibuja
-encima.
+Arrastra una ventana por su **barra de título** y redimensiónala tirando
+de sus **bordes** o esquinas. El foco del teclado lo tiene la última
+ventana clicada, y la ventana con el foco se dibuja encima de las demás.
 
 ### Ratón y teclado juntos
 
@@ -225,7 +244,7 @@ prueba automática que lo verifica en cada versión).
 | Cambios perdidos tras reiniciar | Falta `sincronizar` | Sincroniza antes de apagar |
 | "no hay bloques contiguos" | Fragmentación | Borra archivos que no necesites y vuelve a intentar |
 
-## 6. Atajos de teclado (v0.5.0)
+## 6. Atajos de teclado (v1.3.0)
 
 | Tecla | Efecto |
 |---|---|
@@ -236,12 +255,23 @@ prueba automática que lo verifica en cada versión).
 | Ctrl+C | Cancelar la línea actual |
 | Mayús/Bloq Mayús | Mayúsculas (Bloq Mayús solo afecta letras) |
 | ´ ` ¨ | Teclas muertas (siguiente vocal se acentúa) |
+| **Alt+Tab** | Siguiente ventana abierta (recuadro con su nombre, sin vista previa) |
+| **Alt+F4** | Cerrar la ventana con el foco |
+| **Alt+Espacio** | Menú de control (▼) de la ventana con el foco |
+| **F2** | En el Editor: guardar el archivo en ALFS |
+| **ESC** | Cerrar la ventana con el foco (Editor, Explorador, Adivina, apps .ALX) |
 
 ## 7. Novedades entre versiones
 
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
+- **v1.3.0**: **escritorio clásico estilo Windows 3.11** — Administrador
+  de Programas con grupos e iconos propios, ventanas con relieve 3D y
+  barra de título azul, minimizar a icono sobre el escritorio,
+  maximizar, menús de control/Archivo/Ventana con cascada y mosaico,
+  Alt+Tab y Alt+F4, arrastre y redimensionado por bordes, y apagado
+  desde Archivo.
 - **v1.2.0**: **ejecutables `.ALX`** — bit de ejecutable en ALFS,
   asociaciones por extensión, loader con API de apps, y las apps
   **Calculadora** y **Reloj** en `/APPS`.
