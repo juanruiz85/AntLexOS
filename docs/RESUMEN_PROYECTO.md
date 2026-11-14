@@ -258,3 +258,12 @@ Reglas de oro aprendidas (errores reales de esta fase, no repitas):
 4. **Fase 4**: `tools/entrenar_lex.zig` → pesos embebidos; `src/kernel/lex/`.
 5. **Fase 5**: ✅ terminada (v0.5.0).
 6. **Fase 6**: ✅ terminada (v1.0.0).
+7. **Fase 7** (v1.2.0, en curso): ejecutables `.ALX` — bit de ejecutable
+   en ALFS, asociaciones, loader+API, apps Calculadora y Reloj.
+8. **Fase 8** (v1.3.0): escritorio estilo Windows 3.11.
+9. **Fase 9** (v1.4.0): red virtio-net + TLS 1.3 + `descargar` + tienda
+   de apps en GitHub.
+
+> El diseño, la restricción de patentes y el **registro de avance por
+> hitos** de las Fases 7–9 viven en [PLAN_FASES_7-9.md](PLAN_FASES_7-9.md)
+> (fuente única de verdad; actualizarlo en cada hito).
