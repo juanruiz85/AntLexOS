@@ -79,7 +79,9 @@ auditoría en `docs/revision_seguridad.md`.
 - [ ] ATA DMA / AHCI; discos más grandes
 - [ ] Sonido PC speaker; pitido de arranque
 - [x] Juego incluido: **Adivina** (v1.1.0, ejemplo del manual de aplicaciones)
-- [ ] Formato de ejecutables `.ALX` + loader (ring 0 primero; aislamiento después) — ver manual_aplicaciones.md §5
+- [ ] **Fase 7 (v1.2.0)**: ejecutables `.ALX` — bit de ejecutable en ALFS, asociaciones por extensión, loader + API, `ejecutar`/`instalar`/`abrir`/`asociar`, apps Calculadora y Reloj — **en curso**, diseño y registro en [PLAN_FASES_7-9.md](docs/PLAN_FASES_7-9.md)
+- [ ] **Fase 8 (v1.3.0)**: escritorio estilo Windows 3.11 — iconos en el escritorio, minimizar a icono, Program Manager, relieve 3D, tile/cascade — diseño en [PLAN_FASES_7-9.md](docs/PLAN_FASES_7-9.md)
+- [ ] **Fase 9 (v1.4.0)**: red virtio-net + TCP + TLS 1.3 + `descargar` y tienda de apps en GitHub — diseño en [PLAN_FASES_7-9.md](docs/PLAN_FASES_7-9.md)
 - [ ] Pila USB (XHCI + mass-storage + lector FAT) para memoria USB
 - [ ] Red (virtio-net) — muy a largo plazo
 - [ ] Múltiples terminales simultáneas
