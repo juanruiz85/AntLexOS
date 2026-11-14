@@ -11,3 +11,4 @@ ktest.o
 *.elf
 __pycache__/
 core
+dist/
