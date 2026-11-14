@@ -12,7 +12,7 @@
 
 | Fase | Qué | Versión | Estado |
 |------|-----|---------|--------|
-| 7 | Ejecutables `.ALX`: bit de ejecutable, asociaciones por extensión, loader y primeras apps | v1.2.0 | 🔨 en curso |
+| 7 | Ejecutables `.ALX`: bit de ejecutable, asociaciones por extensión, loader y primeras apps | v1.2.0-dev | ✅ implementada (publicación de v1.2.0 cuando el propietario lo pida) |
 | 8 | Escritorio estilo Windows 3.11: iconos, minimizar a icono, Program Manager, relieve 3D | v1.3.0 | ⏳ planificada |
 | 9 | Red: driver virtio-net, TCP, TLS 1.3, HTTP, comando `descargar` y tienda de apps en GitHub | v1.4.0 | ⏳ planificada |
 
@@ -102,8 +102,8 @@ Editor de texto y gestor de archivos ya existen como apps del sistema
 | Hito | Qué | Commit | Estado |
 |---|---|---|---|
 | A | Este plan + registro duradero | fdaab8d | ✅ |
-| B | Kernel + loader + apps CALC/RELOJ funcionando | (este commit) | ✅ |
-| C | Documentación (manuales, CHANGELOG, PRUEBAS), auditoría REV-v1.2.0, batería completa | — | ⏳ |
+| B | Kernel + loader + apps CALC/RELOJ funcionando | c267c7a | ✅ |
+| C | Documentación, auditoría REV-v1.2.0-dev y batería final | (este commit) | ✅ |
 
 **Hito B — verificado (2026-11-14)**: 54/54 pruebas host (44 previas + 4 de
 alx_def + 3 de la calculadora + 2 de mkalx + 1 de registro) · arnés nuevo
@@ -227,3 +227,11 @@ para abrir con doble clic — el "wget" propio del sistema.
 3. Toda decisión de diseño importante queda aquí o enlazada desde aquí.
 4. Los commits van como `juanruiz85` (ver `CONTRIBUTING.md` y
    `tools/configurar_identidad.sh`).
+
+> **Registro de cierre de la Fase 7 (2026-11-14)**: batería final sobre la
+> build `1.2.0-dev`: 54/54 host · probar_alx 20/20 · escritorio 41/41 ·
+> boot BIOS/UEFI · ISO 6/6 y 7/7 · ALFS · AntLex 24/24 · auditar · fmt.
+> Auditoría REV-v1.2.0-dev en `docs/revision_seguridad.md` (S1 aislamiento
+> aceptado y documentado; S2 pánicas de apps; S3 alias @memcpy corregido;
+> S4 mapeo de teclas ES en QMP). La Fase 8 (escritorio Win 3.11) puede
+> empezar sobre esta base.

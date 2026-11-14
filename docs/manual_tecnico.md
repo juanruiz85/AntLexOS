@@ -389,7 +389,7 @@ teclado se enruta según el foco: `interprete.tecla()` (extraída del bucle
 clásico), la línea del chat o la ventana activa. En modo escritorio
 `antlex.salida` escribe en el panel de chat (siempre refleja por serie).
 `apps.zig` es la lógica PURA de editor/explorador/adivina (probada en
-host); el
+host) y `alx_def.zig`/`alx.zig` el formato y loader `.ALX`; el
 pegamento con ALFS vive en gui.zig.
 
 **Límite del kernel**: 768 KiB (`layout.zig`, P2 es de 4 MiB y el heap
@@ -406,7 +406,36 @@ son módulos compilados dentro del kernel: no hay archivos ejecutables en
 ALFS — el [manual de aplicaciones](manual_aplicaciones.md) describe cómo
 crear la tuya y qué haría falta para un formato `.ALX` en el futuro.
 
-## 5d. ISO y portables (Fase 6, `stage1_cd.asm` + `tools/mkiso.zig` + `tools/empaquetar_portable.sh`)
+## 5d. Ejecutables `.ALX` (Fase 7)
+
+**Formato** (definido en `src/kernel/alx_def.zig`, compartido con apps y
+`tools/mkalx.zig`): cabecera de 64 B (`ALX1`, versión, `bss_len`,
+`entry_off` de `alx_evento`, `image_len`, nombre) seguida de la imagen —
+un ELF x86_64 freestanding enlazado en 16 MiB (`apps/app.ld`) reducido a
+sus segmentos PT_LOAD.
+
+**Carga** (`src/kernel/alx.zig`): se valida la cabecera ANTES de tocar
+memoria (magic, versión, `image_len == tamaño−64`, imagen ≤ 256 KiB,
+`image+bss ≤ 1 MiB`, entry dentro de la imagen); la región de 1 MiB en
+16 MiB (identity-mapped por stage2; kernel < 4 MiB, heap ≥ 32 MiB) se
+pone a cero, se copia la imagen y se llama a `alx_evento(api, ev)` con
+ABI C. Una app externa a la vez; sin aislamiento (ring 0): registrado
+como riesgo aceptado en la auditoría, con el bit de ejecutable explícito
+como barrera mínima.
+
+**Eventos**: EV_INIT (título/tamaño), EV_TECLA, EV_DIBUJAR (área de
+cliente), EV_TICK (1 Hz), EV_CERRAR. La **API** expone dibujo con bisel
+3D, `consola` (consola+serie), tics/hora del RTC y `leer`/`escribir` en
+ALFS — ver la tabla completa en `docs/manual_aplicaciones.md` §3.2.
+
+**Bit de ejecutable**: byte `flags` de la entrada ALFS (bit `0x01`),
+reservado desde el formato v1 (v1.0.0/v1.1.0 lo escribían a 0:
+retrocompatible). `mkalfs` marca los `.ALX` de `fsroot` y los `--app`;
+`instalar`/`desinstalar` en vivo. **Asociaciones por extensión**: tabla
+en el kernel (TXT→editor, ALX→ejecutar) consultada por `abrir` y el
+doble clic; editable con `asociar`.
+
+## 5e. ISO y portables (Fase 6, `stage1_cd.asm` + `tools/mkiso.zig` + `tools/empaquetar_portable.sh`)
 
 **ISO (29 MiB)**: área de sistema con la marca ANTLEX (el bootloader UEFI
 identifica el medio por BlockIO), stage2_cd en el LBA 1, PVD/BRVD/terminador

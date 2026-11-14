@@ -1,294 +1,229 @@
 # Manual de aplicaciones — AntLex OS
 
-Cómo crear aplicaciones y juegos para AntLex OS, con el juego **Adivina**
-(como ejemplo real del repositorio) paso a paso.
+Cómo crear aplicaciones para AntLex OS. Desde **v1.2.0** el sistema abre
+**ejecutables `.ALX`** desde disco: los ejemplos reales del repositorio son
+la **Calculadora** y el **Reloj** (`apps/*.zig`), que se compilan, se
+convierten con `tools/mkalx.zig` y se instalan en `/APPS` con el bit de
+ejecutable — todo dentro del propio `zig build`.
 
-> Versión del documento: v1.1.0 · El ejemplo vive en
-> `src/kernel/apps.zig` (lógica), `src/kernel/gui.zig` (ventana) y
-> `tools/probar_escritorio.py` (prueba). Captura: `docs/img/juego-adivina.png`.
-
----
-
-## 1. Cómo funciona realmente una «app» en AntLex OS
-
-### 1.1 No hay ejecutables independientes (todavía)
-
-En AntLex OS v1.x **no existe un formato de ejecutable de usuario**: no hay
-`.exe`, ni `.elf`, ni `.app` que se pueda copiar y lanzar. Una aplicación
-es un **módulo Zig que se compila DENTRO del kernel** y se registra en la
-GUI. Cuando enciendes el sistema, la app ya está dentro.
-
-La unidad de código de una app es un archivo `.zig` (por ejemplo
-`src/kernel/tuapp.zig` o una sección de `src/kernel/apps.zig`). «Instalar»
-tu app = recompilar la imagen del sistema con ella dentro.
-
-**¿Por qué esta decisión?** El kernel aún no tiene las tres piezas que
-exige un formato de ejecutables real:
-
-| Pieza | Qué haría falta | Estado |
-|---|---|---|
-| Carga dinámica | Un loader que lea un archivo y lo mapee en memoria (ELF o formato propio) | No existe |
-| Aislamiento | Anillo 3 + syscalls: que una app no pueda tumbar el sistema | Sin ring 3 (todo corre en ring 0) |
-| Punto de entrada estándar | ABI de llamada al kernel (abrir ventana, dibujar…) | Las apps llaman a `gui`/`pantalla` directamente |
-
-Es el camino clásico de los sistemas operativos educativos: primero el
-sistema monolítico funciona completo; el formato de ejecutables vendrá
-después (ver §5).
-
-### 1.2 ¿Y por qué el Explorador no muestra los archivos del sistema?
-
-Es **intencional**, y la razón es de arquitectura: **el sistema no corre
-desde archivos**. El disco se divide en regiones fijas:
-
-```
-offset 0        MBR + stage1 (512 B)          ┐
-LBA 1..32       stage2 (16 KiB)               │ cadena de arranque + kernel:
-9 MiB           kernel binario (4 MiB)        │ se leen por LBA fijo,
-mkfat           FAT16 del arranque UEFI       │ no son «archivos»
-13 MiB          volumen ALFS (16 MiB)         ┘ ← LO ÚNICO que monta el kernel
-29 MiB          fin del disco (29 MiB)
-```
-
-El explorador (y los comandos `lista`, `mostrar`…) solo montan el volumen
-**ALFS** de 13 MiB: la partición de datos del usuario. El kernel no sabe
-ni leer ni escribir las demás regiones como archivos — para él son
-sectores crudos. Dos consecuencias buenas:
-
-1. **No puedes borrar el sistema por accidente**: no hay comando ni clic
-   que alcance la zona del kernel.
-2. **Todo lo que ves en ALFS son tus datos**: nada de archivos ocultos
-   del sistema que «ensucien» el explorador.
-
-Así que no, no corre «desde una única pieza en el arranque»: corre desde
-una **cadena** (stage1 → stage2 → kernel) que se copia a memoria tal cual;
-y el kernel lleva todas las aplicaciones compiladas dentro.
-
-### 1.3 ¿Qué es entonces un «archivo» en ALFS?
-
-ALFS (AntLex File System) tiene dos tipos de entrada: directorio y
-archivo de texto. **No hay bit de ejecutable, ni permisos, ni
-asociaciones por extensión** — una extensión como `.TXT` es solo parte
-del nombre. Por eso «pegar mi app en el explorador» no puede funcionar
-hoy: pegarías datos, y no hay nada que los ejecute.
+> Versión del documento: v1.2.0-dev · Formato y API: `src/kernel/alx_def.zig`
+> (fuente única de verdad, compartida por kernel, apps y mkalx) ·
+> Diseño por fases: `docs/PLAN_FASES_7-9.md` · Captura: `docs/img/calculadora.png`
 
 ---
 
-## 2. Cómo meter DATOS en el sistema (sin USB ni red)
+## 1. Los dos tipos de aplicación
 
-AntLex OS v1.x **no tiene pila USB** (haría falta driver XHCI + protocolo
-mass-storage/BOT + lector FAT/exFAT) **ni pila de red** (driver NIC +
-TCP/IP). No se puede «descargar de internet» dentro del sistema. Los
-tres canales reales para llevar datos a ALFS:
+### 1.1 Apps externas `.ALX` (la vía recomendada)
 
-### 2.1 Al construir la imagen (recomendado)
-
-Todo lo que pongas en `fsroot/` del repositorio acaba dentro del volumen
-ALFS de la imagen, gracias a `mkalfs`:
+Un `.ALX` es un archivo ejecutable del sistema: el kernel lo carga desde
+ALFS a una región fija de memoria y lo ejecuta por eventos. «Instalar» una
+app = ponerle el **bit de ejecutable** (`instalar CALC.ALX` o, en el build,
+`mkalfs` lo hace por ti para `/APPS/*.ALX`).
 
 ```
-fsroot/
-  LEEME.txt          → /LEEME.TXT
-  ejemplos/datos.txt → /EJEMPLOS/DATOS.TXT
-  juegos/notas.txt   → /JUEGOS/NOTAS.TXT
+apps/calculadora.zig ──(zig build-exe, apps/app.ld, enlazado en 16 MiB)──▶ ELF
+                        ──(tools/mkalx.zig: cabecera + imagen)─────────▶ CALC.ALX
+                        ──(mkalfs --app: /APPS con bit ejecutable)─────▶ imagen
 ```
 
-```bash
-cp mis-notas.txt AntLexOS/fsroot/       # tu archivo, en español y sin ñ
-cd AntLexOS && zig build -Drelease=true # regenera antlexos.img
-# arranca la imagen y ahí está: /MIS-NOTAS.TXT
+Formato del archivo (64 B de cabecera + imagen):
+
+```
+"ALX1" · u16 versión · u16 flags · u32 bss_len · u32 entry_off (alx_evento)
+u32 image_len · nombre[16] · reservado[28] · imagen (código+datos en 16 MiB)
 ```
 
-Es el flujo normal de desarrollo de sistemas operativos: cambias el
-contenido, regeneras, arrancas (30 segundos con el portable).
+**Qué NO hay todavía** (trabajo futuro, ver el plan de fases): aislamiento
+— la app corre en ring 0 como todo el sistema y una app defectuosa puede
+colgarlo (documentado en la auditoría REV-v1.2.0); por eso el bit de
+ejecutable se pone de forma explícita y no hay autoarranque. El formato
+`.ALX` es diseño propio del proyecto, sin patentes de terceros.
+
+### 1.2 Apps internas (compiladas en el kernel)
+
+El Explorador, el Editor, el juego Adivina o los paneles del escritorio son
+módulos Zig compilados DENTRO del kernel: no están en ALFS y no se pueden
+desinstalar. Son «apps del sistema», como el propio shell. El juego
+**Adivina** se documentó así en su día y sigue siendo el ejemplo canónico
+de app interna (§4); la Calculadora demuestra la misma disciplina como app
+externa `.ALX`.
+
+### 1.3 ¿Por qué el Explorador no muestra los archivos del sistema?
+
+Es **intencional**: el kernel solo monta el volumen ALFS (13 MiB, la
+partición de datos). La cadena de arranque y el propio kernel viven en
+regiones crudas leídas por LBA fijo (ver el layout en el manual técnico):
+no son archivos, no se pueden listar, modificar ni borrar desde ALFS.
+Consecuencias: no puedes borrar el sistema por accidente, y todo lo que ves
+en el explorador son tus datos (incluidas las apps `.ALX` de `/APPS`).
+
+### 1.4 ¿Qué es un archivo en ALFS?
+
+ALFS tiene directorios y archivos con **un byte de atributos** cuyo bit
+`0x01` = ejecutable (`.ALX` instalado). No hay permisos por usuario: las
+**asociaciones por extensión** (TXT→editor, ALX→ejecutar) viven en una
+tabla del kernel que se consulta con `abrir`, el doble clic del explorador
+o `asociar <ext> <accion>`.
+
+---
+
+## 2. Cómo meter DATOS y APPS en el sistema (sin USB ni red)
+
+AntLex OS v1.x no tiene pila USB ni de red (la red llega en la Fase 9 con
+la tienda de apps; ver el plan). Los canales reales:
+
+### 2.1 Al construir la imagen (recomendado para apps)
+
+- Todo lo que pongas en `fsroot/` acaba en ALFS: `cp miapp.ALX AntLexOS/fsroot/`
+  — `mkalfs` marca los `.ALX` con el bit automáticamente.
+- Las apps del repositorio se construyen solas: añade tu `.zig` en `apps/`,
+  regístralo en `build.zig` (lista `apps_alx`) y `zig build -Drelease=true`
+  lo compila, lo convierte y lo instala en `/APPS`.
 
 ### 2.2 En vivo, desde el TERMINAL
 
 ```
-antlex:/?> escribir partidas.txt Gane al adivina en 5 intentos
-antlex:/?> anexar partidas.txt y tambien en 3
-antlex:/?> mostrar partidas.txt
-antlex:/?> sincronizar        ← obligatorio antes de apagar: escribe al disco
+antlex:/?> instalar /apps/calc.alx       ← pone el bit de ejecutable
+antlex:/?> ejecutar /apps/calc.alx       ← la abre en su ventana
+antlex:/?> atributos /apps/calc.alx      ← "archivo, N bytes, EJECUTABLE"
+antlex:/?> abrir nota.txt                ← sigue la asociación (editor)
+antlex:/?> asociar log mostrar           ← cambia la tabla
+antlex:/?> sincronizar                   ← obligatorio antes de apagar
 ```
 
 ### 2.3 En vivo, desde la GUI
 
-Botón **Editor** → escribe → **F2** guarda en ALFS (pedirá nombre la
-primera vez).
+Doble clic (o clic + INTRO) sobre `CALC.ALX` en el explorador: si tiene el
+bit, se ejecuta; si no, la consola explica cómo instalarlo. Sobre un `.TXT`
+lo abre el editor. Los datos se escriben con el Editor (F2 guarda en ALFS)
+o con `escribir`/`anexar`.
 
-> La persistencia es real: `sincronizar` (o apagar, que sincroniza) deja
-> los datos en el disco y siguen ahí tras reiniciar. El arnés
-> `tools/probar_alfs.py` lo verifica escribiendo, reiniciando y
-> comprobando.
+> La persistencia es real: `sincronizar` (o apagar) escribe al disco y los
+> datos sobreviven al reinicio — lo verifica `tools/probar_alfs.py`.
 
 ---
 
-## 3. Tutorial: tu primera aplicación, paso a paso
+## 3. Tutorial: tu primera app `.ALX` paso a paso
 
-Vamos a construir **Adivina**: el sistema piensa un número del 1 al 100,
-tú escribes cifras y te dice «mayor» o «menor». El código completo está
-en el repositorio; aquí se explica cada decisión.
+La **Calculadora** del repositorio (`apps/calculadora.zig`) es el ejemplo
+completo; aquí se explica cada pieza.
 
-### 3.1 Regla de oro del proyecto
+### 3.1 Regla de oro: lógica PURA + capa fina de eventos
 
-**La lógica de la app va PURA** (sin hardware, sin framebuffer, sin
-ALFS): solo structs y funciones. Así se puede probar en el host con
-`zig build test` en milisegundos, sin arrancar QEMU. El pegamento con
-hardware (teclado, dibujo, serie) vive en `gui.zig` y se mantiene mínimo.
+Divide la app en dos: la **lógica** (structs y funciones puras, sin
+hardware) y la **capa ALX** (eventos y dibujo). Así pruebas la lógica en el
+host con `zig build test` en milisegundos — los tests de la calculadora
+(sumas, cadena a la izquierda, `9/0=E`, límites de dígitos) corren ahí.
 
-### 3.2 Paso 1 — estado y lógica pura (`src/kernel/apps.zig`)
-
-El estado de la app es un struct plano (sin punteros, sin allocación) y
-sus eventos devuelven un enum que la GUI traduce en trazas:
+### 3.2 El contrato: `alx_evento(api, ev)` con ABI C
 
 ```zig
-pub const AdivinaEvento = enum { nada, intento, acierto, nueva };
+const std = @import("std");
+const alx = @import("alx_def");   // módulo compartido con el kernel
 
-pub const Adivina = struct {
-    semilla: u32 = 0x1234_5678,   // xorshift: avanza en cada ronda
-    secreto: u16 = 0,             // 1..100
-    intentos: u16 = 0,
-    acertado: bool = false,
-    intento: [3]u8 = undefined,   // cifras en curso
-    intento_len: u8 = 0,
-    msg: [48]u8 = undefined,      // «El numero es MAYOR»…
-    msg_len: u8 = 0,
-};
-
-pub fn adivinaNueva(a: *Adivina, semilla: u32) void { … }
-pub fn adivinaTecla(a: *Adivina, c: u8) AdivinaEvento { … }
-```
-
-`adivinaTecla` procesa una tecla y devuelve qué pasó: los dígitos
-acumulan, INTRO evalúa (`mayor`/`menor`/¡correcto!), la tecla 8 borra y,
-tras acertar, INTRO arranca una ronda nueva con la semilla avanzada.
-Fíjate en los límites explícitos (máximo 3 dígitos, mensaje acotado a
-48 bytes): es la regla de seguridad del proyecto — todo búfer acotado.
-
-**El azar sin hardware**: `adivinaNueva` recibe la semilla por parámetro.
-Las pruebas pasan una semilla fija (determinismo total) y la GUI pasa
-`pit.leerTics()` (los tics del temporizador al abrir la ventana).
-
-### 3.3 Paso 2 — registrar la ventana (`src/kernel/gui.zig`)
-
-Ocho puntos de registro, todos con assert en los scripts del repo:
-
-1. **Tipo**: añade tu app al enum `TipoApp` (cupo actual: 4 valores `u2`).
-   ```zig
-   pub const TipoApp = enum(u2) { explorador = 0, editor = 1, acerca = 2, adivina = 3 };
-   ```
-   ¿Más de 4 apps? Cambia `u2` por `u3` y agranda `ventanas`.
-2. **Nombre**: `const NOMBRE_APP = [4][]const u8{ …, "Adivina" };` (lo
-   usan las trazas y el título).
-3. **Botón de la barra**: añádelo AL FINAL de `BOTONES` (no desplaces
-   los existentes: el arnés replica sus coordenadas):
-   ```zig
-   .{ .x = 436, .an = 70, .texto = "Adivina" },
-   ```
-4. **Estado en la ventana**: campo nuevo en `Ventana`
-   (`adv: apps.Adivina = .{}`) y `var ventanas: [4]Ventana`.
-5. **Posición inicial**: en `init()`,
-   `ventanas[@intFromEnum(TipoApp.adivina)] = .{ .x = 330, .y = 170, .an = 340, .al = 230 };`
-6. **Clic en el botón**: en el `switch (i)` de la barra,
-   `6 => abrirVentana(.adivina),`. Dentro de `abrirVentana`, inicia la
-   ronda tras el foco (el orden de las trazas lo espera el arnés):
-   ```zig
-   if (t == .adivina) {
-       apps.adivinaNueva(&v.adv, @truncate(pit.leerTics()));
-       serial.puts("gui: adivina nueva\n");
-   }
-   ```
-7. **Teclado**: caso nuevo en `procesarTecla`. ESC cierra; el resto va a
-   tu lógica y el evento se traduce en trazas de serie:
-   ```zig
-   .adivina => {
-       if (c == teclado.ESC) { cerrarVentana(.adivina); return; }
-       const ev = apps.adivinaTecla(&ventanas[@intFromEnum(TipoApp.adivina)].adv, c);
-       switch (ev) {
-           .intento => serial.puts("gui: adivina intento\n"),
-           .acierto => serial.puts("gui: adivina acierto\n"),
-           .nueva   => serial.puts("gui: adivina nueva\n"),
-           .nada    => {},
-       }
-       dibujarTodo();
-   },
-   ```
-8. **Dibujo**: caso nuevo en `dibujarVentana` + tu función
-   `dibujarAdivina(v, x, y)` usando `texto`, `textoLim` y `pantalla.rect`
-   (copia el patrón del editor). Y un caso en `tituloVentana`.
-
-Los cierres por el botón [X], el arrastre, el orden Z y el foco los
-hereda tu ventana gratis del gestor de ventanas.
-
-### 3.4 Paso 3 — pruebas host deterministas (`src/kernel/apps.zig`, bloque `test`)
-
-```zig
-test "adivina: ronda completa determinista" {
-    var a = Adivina{};
-    adivinaNueva(&a, 42);                 // semilla fija → secreto conocido
-    // … teclea '5','0', INTRO; acierta con el secreto; INTRO reinicia …
-    try testing.expectEqual(AdivinaEvento.acierto, ev);
-    try testing.expectEqual(@as(u16, 3), a.intentos);
+export fn alx_evento(api: *const alx.Api, ev: *const alx.Evento) callconv(.c) void {
+    switch (ev.tipo) {
+        alx.EV_INIT    => { api.titulo("Calculadora"); api.tam(280, 190); },
+        alx.EV_TECLA   => { /* tu lógica con ev.tecla */ },
+        alx.EV_DIBUJAR => { /* pintar el área de cliente (ev.x, ev.y, ev.an, ev.al) */ },
+        alx.EV_TICK    => {},   // ≈1 Hz (relojes)
+        alx.EV_CERRAR  => {},   // la ventana se cierra
+        else => {},
+    }
 }
 ```
 
-Con `zig build test` verificas la lógica del juego entera (incluido el
-reinicio de ronda) sin arrancar la máquina. Añade casos límite: teclas
-ignoradas, números fuera de 1..100, tres dígitos y no más.
+La **API** (tabla de funciones del kernel; el detalle exacto, en
+`src/kernel/alx_def.zig`):
 
-### 3.5 Paso 4 — pasos del arnés (`tools/probar_escritorio.py`)
+| Función | Qué hace |
+|---|---|
+| `texto` / `textoLim` / `rect` | dibujar en coordenadas del área de cliente |
+| `bisel(x, y, an, al, hundido)` | relieve 3D (el estilo del escritorio clásico) |
+| `tam(an, al)` | tamaño de la ventana — **solo durante EV_INIT** (120×80..600×400) |
+| `titulo(s)` | cambia el título de la ventana |
+| `tics()` / `hora()` | tics del PIT (≈100 Hz) / hora del RTC como HHMMSS |
+| `consola(s)` | imprime en la consola del sistema (se refleja por serie) |
+| `leer(ruta, buf, cap)` / `escribir(ruta, buf, len)` | archivos de ALFS |
 
-Añade el botón a `BOTONES` del arnés y pasos que usan el ratón y el
-teclado REALES por QMP/HMP:
+Toda app necesita además un manejador de pánico (una pánica detiene el
+sistema: sin aislamiento todavía — el de la calculadora deja rastro por
+consola antes de detenerse).
 
-```python
-"adivina": (471, ALTO - 14),   # centro del botón x=436 an=70
+### 3.3 Detalles que ahorran horas
 
-r.clic(*BOTONES["adivina"])
-paso("ventana Adivina", "gui: ventana abierta Adivina", ref, serial_path)
-paso("foco Adivina", "gui: foco ventana Adivina", ref, serial_path)
-paso("ronda nueva de Adivina", "gui: adivina nueva", ref, serial_path)
-teclear_con_igual(qmp, "50"); qmp.tecla("ret"); time.sleep(0.6)
-paso("intento de Adivina registrado", "gui: adivina intento", ref, serial_path)
-qmp.tecla("esc")
-paso("Adivina cerrada con ESC", "gui: ventana cerrada Adivina", ref, serial_path)
-```
+- **Cadenas C**: la API usa `[*:0]const u8`. Para formatear, escribe en un
+  búfer propio y NUL-termina con `buf[s.len] = 0` (¡no copies con
+  `@memcpy` un slice que ya vive en el mismo búfer: ReleaseSafe lo detecta
+  como alias y pánica — nos pasó con la Calculadora y el Reloj!).
+- **Colores**: `alx.rgb(r, g, b)` (0x00RRGGBB, como `pantalla.rgb`).
+- **Métricas de fuente**: `alx.ANCHO_CARACTER` (8) y `alx.ALTO_CARACTER` (16).
+- **Estado**: variables globales `var` — viven en `.bss` y el loader las
+  pone a cero en cada carga.
+- **Teclado español en los arneses**: en QMP, `+` es `bracket_right`,
+  `*` es `shift+bracket_right` y `=` es `shift+0` (ver
+  `tools/probar_alx.py::teclear_mas`).
 
-Así tu app queda protegida contra regresiones para siempre (CI la ejecuta
-en cada push).
+### 3.4 Compilar e instalar (build.zig)
 
-### 3.6 Paso 5 — construir y verificar
+1. Escribe `apps/tuapp.zig` (exportando `alx_evento` y con su pánico).
+2. Regístrala en `build.zig`:
+   ```zig
+   const apps_alx = [_]AppsAlx{
+       .{ .fuente = "apps/calculadora.zig", .nombre = "CALC" },
+       .{ .fuente = "apps/tuapp.zig",       .nombre = "TUAPP" },  // ← añade
+   };
+   ```
+   (nombre ≤ 16, mayúsculas: es lo que muestran `alx: cargada` y el título
+   por defecto de la ventana).
+3. `zig build -Drelease=true`: ELF freestanding en 16 MiB (`apps/app.ld`)
+   → `mkalx` valida y convierte → `mkalfs` lo instala en `/APPS/TUAPP.ALX`
+   con el bit de ejecutable. Sale en la IMG y en la ISO.
+
+### 3.5 Probar
 
 ```bash
-zig fmt .                                  # el CI lo exige
-zig build -Drelease=true                   # kernel + bootloader + IMG + ISO
-zig build test                             # tus pruebas host
-python3 tools/probar_escritorio.py zig-out/antlexos.img build/prueba --tiempo 300
-python3 tools/auditar.py                   # secretos, marcadores, versión
+zig build test                                  # tu lógica + formato + mkalx
+python3 tools/probar_alx.py zig-out/antlexos.img build/palx   # de punta a punta
+python3 tools/probar_escritorio.py ...          # clic+INTRO en el explorador
 ```
 
-Estado verificado del ejemplo: **44/44 pruebas host** y **33/33 pasos del
-arnés de escritorio** (los 5 pasos del juego incluidos).
+`probar_alx.py` verifica por serie: bit, carga, ventana, foco, cálculos
+con teclado real, cierre con ESC, asociaciones y errores útiles. En el
+sistema, `ejecutar` sin bit o sobre un no-`.ALX` explica qué falta.
+
+### 3.6 Lista de comprobación para una app nueva
+
+- [ ] Lógica pura con pruebas host (casos límite incluidos)
+- [ ] `alx_evento` con ABI C + manejador de pánico
+- [ ] `tam`/`titulo` solo en EV_INIT; dibujo acotado al área de cliente
+- [ ] Búferes acotados y sin `@memcpy` con alias
+- [ ] Registrada en `build.zig`; `zig fmt`, `zig build test`
+- [ ] Pasos en `probar_alx.py` (o el arnés que toque) y fila en `docs/PRUEBAS.md`
+- [ ] Si guarda datos: `api.escribir` + `sincronizar` antes de apagar
 
 ---
 
-## 4. Lista de comprobación para una app nueva
+## 4. Apps internas: el modelo del juego Adivina
 
-- [ ] Lógica pura en `apps.zig` (o `tuapp.zig`) con límites explícitos
-- [ ] Prueba host determinista (semillas fijas, casos límite)
-- [ ] Los 8 registros de `gui.zig` (tipo, nombre, botón AL FINAL,
-      estado, posición, clic, teclado con ESC, dibujo + título)
-- [ ] Trazas de serie para cada acción visible (`gui: miapp …`)
-- [ ] Pasos del arnés con ratón/teclado reales
-- [ ] `zig fmt`, `zig build test`, arnés completo, `auditar.py`
-- [ ] Fila en `docs/PRUEBAS.md` y entrada en `CHANGELOG.md`
-- [ ] Si tu app necesita datos: mételos por `fsroot/` (§2.1)
+Las apps del sistema (compiladas en el kernel) se registran en la GUI con
+los **8 puntos** de siempre (tipo, nombre, botón AL FINAL de la barra,
+estado, posición, clic, teclado con ESC, dibujo + título) y su lógica vive
+en `src/kernel/apps.zig` — pura y probada en host. El juego Adivina
+(adivina el número 1..100; xorshift sembrado por el PIT al abrir) es el
+ejemplo canónico documentado en la v1.1.0: sigue siendo válido paso a paso.
+Úsalo para apps que deben existir aunque ALFS esté vacío; para todo lo
+demás, `.ALX`.
 
-## 5. Más allá: un formato de ejecutables propio (ideas)
+## 5. Presente y futuro
 
-Cuando el proyecto crezca, el salto natural es un formato **.ALX** con
-loader en el kernel: cabecera mágica + versión + punto de entrada +
-secciones reubicables, leído desde ALFS por un `cargador.zig`, con la app
-llamando al kernel por una tabla de funciones exportadas (dibujar,
-teclado, ALFS). El mismo diseño del bootloader UEFI (que ya carga ELF
-_PE_ por BlockIO) sirve de guía: es el mismo problema a otro nivel. Ver
-«Ideas futuras» en `TODO.md`.
+- **Hecho (v1.2.0-dev)**: formato `.ALX`, bit de ejecutable, asociaciones,
+  loader con API de eventos, Calculadora y Reloj.
+- **Fase 8 (v1.3.0)**: escritorio estilo Windows 3.11 — iconos en el
+  escritorio para las apps instaladas, minimizar a icono, Program Manager.
+- **Fase 9 (v1.4.0)**: red (virtio-net, TCP, TLS 1.3 con cripto IETF sin
+  regalías) y **tienda de apps** en un repositorio GitHub con índice y
+  verificación SHA-256: `descargar CALC` + `instalar` y a correr.
+- **Después**: aislamiento (ring 3 + syscalls), varias apps externas a la
+  vez, pila USB. Ver `TODO.md` y `docs/PLAN_FASES_7-9.md`.

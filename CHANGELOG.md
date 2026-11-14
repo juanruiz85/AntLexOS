@@ -1,3 +1,25 @@
+## [v1.2.0-dev] - Sin publicar
+
+### Ejecutables .ALX: el sistema abre aplicaciones desde disco (Fase 7)
+
+- **Formato `.ALX` propio** (cabecera de 64 B + imagen en 16 MiB): apps
+  compiladas como ELF freestanding y convertidas con `tools/mkalx.zig`;
+  la fuente única del formato (`src/kernel/alx_def.zig`) la comparten
+  kernel, apps y herramienta — sin patentes, diseño del proyecto
+- **Bit de ejecutable** en ALFS (byte `flags` reservado: retrocompatible)
+  y **asociaciones por extensión** (TXT→editor, ALX→ejecutar)
+- **Loader en el kernel** (`src/kernel/alx.zig`): cabecera validada a
+  fondo, región fija de 1 MiB, una app a la vez (ring 0, documentado)
+- **API de aplicaciones** (ABI C por eventos): dibujo con bisel 3D,
+  título/tamaño de ventana, tics, hora del RTC, consola y archivos ALFS
+- **Apps**: **Calculadora** (enteros de 64 bits, cadena a la izquierda,
+  `9/0=E`) y **Reloj** (RTC + redibujo por segundo), instaladas en
+  `/APPS` con el bit por el propio build
+- **Comandos**: `ejecutar`, `instalar`, `abrir`, `asociar`, `atributos`
+- **Doble clic** en el explorador abre `.ALX` (y `.TXT` en el editor)
+- **Pruebas**: 54/54 host (formato, mkalx con ELF sintético, lógica de
+  la calculadora) · arnés nuevo `probar_alx.py` 20/20 · escritorio 41/41
+
 ## [v1.1.0] - 2026-11-14
 
 ### Manual de aplicaciones + primera app de terceros

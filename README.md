@@ -15,7 +15,11 @@
 
 ![Juego Adivina](docs/img/juego-adivina.png)
 
-*El juego Adivina — la aplicación de ejemplo del [manual de aplicaciones](docs/manual_aplicaciones.md).*
+*El juego Adivina — app interna de ejemplo del [manual de aplicaciones](docs/manual_aplicaciones.md).*
+
+![Calculadora](docs/img/calculadora.png)
+
+*La Calculadora, una app externa `.ALX` que vive en `/APPS` del disco: desde v1.2.0 el sistema abre ejecutables propios.*
 
 ## Probarlo ahora
 
@@ -64,13 +68,17 @@ zig build probar                  # arranca en QEMU sin interfaz y valida serial
 | 5 | v0.5.0 | Escritorio con ventanas, ratón y barra de tareas | ✅ |
 | 6 | v1.0.0 | ISO BIOS+UEFI, portables con QEMU, releases automatizados | ✅ |
 | — | v1.1.0 | Manual de aplicaciones + juego Adivina (primera app de terceros) | ✅ |
+| — | v1.2.0-dev | **Ejecutables `.ALX`**: bit de ejecutable, asociaciones, loader, Calculadora y Reloj (Fase 7) | 🔨 |
 
 Cada versión queda registrada en [CHANGELOG.md](CHANGELOG.md) y sus pruebas en [docs/PRUEBAS.md](docs/PRUEBAS.md).
 
 ## Hacer tus propias aplicaciones
 
-No hay formato de ejecutables independiente (todavía): las aplicaciones son
-módulos Zig que se compilan dentro del kernel. El
+**Desde v1.2.0-dev el sistema abre ejecutables `.ALX` desde disco**: bit de
+ejecutable en ALFS, asociaciones por extensión, loader propio y una API de
+eventos (la Calculadora y el Reloj del build son apps `.ALX`). El manual
+también documenta las apps internas (módulos compilados en el kernel, como
+el juego Adivina) y qué falta para el aislamiento entre apps. El
 [**manual de aplicaciones**](docs/manual_aplicaciones.md) explica la
 arquitectura, cómo meter datos en el sistema (sin USB ni red), y construye
 una app completa paso a paso — el juego Adivina del repositorio es el ejemplo.

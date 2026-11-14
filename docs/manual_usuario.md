@@ -184,6 +184,10 @@ panel o ventana donde quieras escribir.
 - **Adivina (juego)**: el sistema piensa un número del 1 al 100; escribe
   cifras y pulsa INTRO — te dirá si el tuyo es menor o mayor. INTRO
   inicia otra ronda tras acertar.
+- **Apps externas `.ALX`**: desde v1.2.0 el sistema abre aplicaciones del
+  disco (la **Calculadora** y el **Reloj** vienen en `/APPS`). Se abren
+  con doble clic en el explorador o con `ejecutar`; el juego de Adivina
+  sigue siendo una app interna de la barra.
 
 Arrastra una ventana por su **barra de título**; ciérrala con el botón
 **[X]** o con ESC. Si algo se solapa, la ventana con el foco se dibuja
@@ -238,7 +242,10 @@ prueba automática que lo verifica en cada versión).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
-- **v1.1.0-dev**: **manual de aplicaciones** + juego **Adivina** (primera
+- **v1.2.0-dev**: **ejecutables `.ALX`** — bit de ejecutable en ALFS,
+  asociaciones por extensión, loader con API de apps, y las apps
+  **Calculadora** y **Reloj** en `/APPS`.
+- **v1.1.0**: manual de aplicaciones + juego **Adivina** (primera
   app de terceros, ejemplo del manual); los datos se meten por `fsroot/`,
   terminal o editor (aún sin USB ni red).
 - **v1.0.0**: **empaquetado y distribución** — ISO9660+El Torito que

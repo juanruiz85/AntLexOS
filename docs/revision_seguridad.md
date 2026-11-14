@@ -283,3 +283,68 @@ nuevas superficies de entrada desde hardware (el teclado pasa por el
 despacho central de la GUI); el manual no promete funciones inexistentes
 (USB, red y ejecutables .ALX figuran como ideas futuras, no como
 presentes).
+
+
+## REV-v1.2.0-dev — 2026-11-14 (Fase 7: ejecutables .ALX)
+
+- **Alcance**: `src/kernel/alx_def.zig` (nuevo, formato+API),
+  `src/kernel/alx.zig` (nuevo, loader), `src/kernel/gui.zig` (ventana de
+  app + API), `src/kernel/interprete.zig` (5 comandos),
+  `src/kernel/alfs_formato.zig` (FLAG_EJECUTABLE), `apps/*` (Calculadora,
+  Reloj, app.ld), `tools/mkalx.zig` (nuevo), `tools/mkalfs.zig` (--app),
+  `tools/probar_alx.py` (nuevo) y `tools/probar_escritorio.py` (8 pasos).
+- **Metodología**: `tools/auditar.py` (PASA: sin secretos, sin
+  marcadores, VERSION sincronizada en 1.2.0-dev) + revisión manual del
+  loader y de la API + batería completa re-ejecutada (ver abajo).
+
+### Verificación ejecutada
+
+| Prueba | Resultado |
+|---|---|
+| `zig build test` (host) | 54/54 (44 previas + 4 alx_def + 3 calculadora + 2 mkalx + 1 registro) |
+| `probar_alx.py` (nuevo) | 20/20 — bit, carga, ventana, foco, 4 cálculos con teclado ES real, `9/0=E`, descarga, asociaciones, `abrir` Reloj con captura, errores, re-ejecución |
+| `probar_escritorio.py` | 41/41 (8 pasos .ALX: explorador → /APPS → CALC.ALX) |
+| boot BIOS / UEFI, ISO 6/6 y 7/7, ALFS, AntLex 24/24, fmt | PASA |
+
+### Análisis de la nueva superficie: cargar y ejecutar código desde disco
+
+El loader es, por definición, la superficie más sensible del sistema:
+ejecuta bytes que vienen de un archivo. Mitigaciones implementadas:
+
+1. **Validación completa antes de tocar la región de la app**: magic
+   `ALX1`, versión exacta, `image_len == tamaño−64`, imagen ≤ 256 KiB,
+   `image+bss ≤ región de 1 MiB`, `entry_off < image_len`. Cabecera
+   corrupta = rechazo limpio con mensaje en consola (probado por el
+   arnés de mkalx con ELFs inválidos y por `probar_alx` en los errores).
+2. **Barrera de instalación explícita**: sin el bit de ejecutable no se
+   puede ejecutar nada; el bit lo pone `instalar` (humano) o el build
+   (`mkalfs`), nunca la descarga implícita ni el doble clic. No hay
+   autoarranque ni ejecución al arrancar.
+3. **Región fija y acotada**: una app a la vez, 16 MiB, imagen+bss
+   ≤ 1 MiB; la región se pone a cero en cada carga (sin residuos).
+4. **Origen único**: `/APPS` del volumen ALFS; sin ejecución desde
+   sectores crudos, sin ejecución remota (la red llega en Fase 9 con
+   verificación SHA-256 obligatoria de la tienda).
+
+### Hallazgos y resolución
+
+| ID | Severidad | Hallazgo | Resolución |
+|----|-----------|----------|------------|
+| S1 | ALTA (aceptada y documentada) | Sin aislamiento: la app corre en ring 0 y puede leer/escribir toda la memoria y el disco (ATA) | Modelo v1.x del sistema (todo corre en ring 0). Mitigado con la barrera de instalación y la fuente única; el aislamiento (ring 3 + syscalls) es trabajo futuro registrado en el plan. `api.leer/escribir` dan acceso a TODO ALFS: sin permisos por ahora |
+| S2 | MEDIA | Una pánica de la app cuelga el sistema (cooperativo, sin excepciones) | Las apps llevan manejador de pánico que deja rastro por consola+serie y se detiene; documentado en el manual. El loader no puede recuperarse (v1) |
+| S3 | BAJA | `@memcpy` con argumentos que alias: pánica en ReleaseSafe de la Calculadora y el Reloj detectada por el arnés | Corregido (NUL-terminar el búfer propio en vez de copiar); el patrón quedó documentado en el manual §3.3 como aviso |
+| S4 | BAJA | Teclas ES en QMP: `+` es `bracket_right` (no `bracketright`); un nombre inválido hace que QMP descarte la tecla en silencio | Mapeo corregido en `teclear_mas`; documentado |
+| H1 | INFO | El entry point sale de `e_entry` del ELF (fijado por build.zig al símbolo `alx_evento`) | Sin symtab en el .ALX: superficie mínima |
+| H2 | INFO | `tam()` fuera de EV_INIT se ignora; título dinámico acotado a 24 B | Sin efecto sobre otras ventanas |
+
+### Puntos verificados correctos (resumen)
+
+La cabecera se valida antes de copiar (nada se ejecuta sin pasar las 6
+comprobaciones); los límites del formato son constantes compartidas
+(kernel, apps y mkalx usan la MISMA definición de `alx_def.zig` — sin
+divergencia posible); el bss se pone a cero en cada carga; los búferes
+de la API son acotados por el kernel (`leer` exige capacidad, `escribir`
+valida ruta y usa las operaciones ALFS existentes); el doble clic sobre
+un `.ALX` sin bit muestra cómo instalarlo en vez de fallar en silencio;
+y la Calculadora trata el desbordamiento de i64 y la división por cero
+con estado de error (E) en vez de pánico.
