@@ -19,6 +19,9 @@ const boot_info = @import("boot_info.zig");
 const pantalla = @import("pantalla.zig");
 const pit = @import("pit.zig");
 const reloj = @import("reloj.zig");
+const alx = @import("alx.zig");
+const alx_def = @import("alx_def.zig");
+const gui = @import("gui.zig"); // abrirApp/editorAbrir (Fase 7)
 const autoprueba = @import("autoprueba.zig");
 const antlex = @import("antlex.zig");
 
@@ -1161,9 +1164,186 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "historia", .alias = "history", .ayuda = "historial de comandos", .uso = "historia", .ejecutar = cmdHistoria },
     .{ .nombre = "pruebas", .alias = "test", .ayuda = "ejecuta las autopruebas", .uso = "pruebas", .ejecutar = cmdPruebas },
     .{ .nombre = "antlex", .alias = "ai", .ayuda = "pregunta a la IA del sistema", .uso = "antlex <pregunta> | antlex por que | antlex aprende <clave> = <respuesta> | antlex memoria", .ejecutar = cmdAntLex },
+    .{ .nombre = "ejecutar", .alias = "run", .ayuda = "carga una app .ALX instalada", .uso = "ejecutar <app.ALX>", .ejecutar = cmdEjecutar },
+    .{ .nombre = "instalar", .alias = "install", .ayuda = "marca un .ALX como ejecutable", .uso = "instalar <app.ALX>", .ejecutar = cmdInstalar },
+    .{ .nombre = "abrir", .alias = "open", .ayuda = "abre un archivo segun su extension", .uso = "abrir <archivo>", .ejecutar = cmdAbrir },
+    .{ .nombre = "asociar", .alias = "assoc", .ayuda = "ver o cambiar asociaciones", .uso = "asociar [ext editor|ejecutar|mostrar]", .ejecutar = cmdAsociar },
+    .{ .nombre = "atributos", .alias = "attrib", .ayuda = "tipo, tamano y bit de ejecutable", .uso = "atributos <archivo>", .ejecutar = cmdAtributos },
     .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
     .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };
+
+// ---------------------------------------------------------------------------
+// Fase 7 — ejecutables .ALX, bit de ejecutable y asociaciones
+// ---------------------------------------------------------------------------
+
+fn cmdEjecutar(args: []const u8) void {
+    if (args.len == 0) {
+        fallo("uso: ejecutar <app.ALX>");
+        return;
+    }
+    const v = volActual() orelse return;
+    const idx = v.resolverDesde(cwd, args) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const e = v.entrada(idx) orelse {
+        fallo("no existe");
+        return;
+    };
+    if (e.tipo != fmt.TIPO_ARCHIVO) {
+        fallo("no es un archivo");
+        return;
+    }
+    if (!alx_def.esAlx(args)) {
+        fallo("los ejecutables de AntLex OS terminan en .ALX");
+        return;
+    }
+    if ((e.flags & fmt.FLAG_EJECUTABLE) == 0) {
+        fallo("no es ejecutable (instalalo primero: instalar <app.ALX>)");
+        return;
+    }
+    salida("ejecutando ");
+    salida(args);
+    salida("...\n");
+    if (!gui.abrirApp(idx)) {
+        fallo("no se pudo cargar la aplicacion");
+    }
+}
+
+fn cmdInstalar(args: []const u8) void {
+    if (args.len == 0) {
+        fallo("uso: instalar <app.ALX>");
+        return;
+    }
+    const v = volActual() orelse return;
+    const idx = v.resolverDesde(cwd, args) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    if (!alx_def.esAlx(args)) {
+        fallo("solo se instalan ejecutables .ALX");
+        return;
+    }
+    if (!alx.ponerBitEjecutable(idx, true)) {
+        fallo("no se pudo instalar (tiene que ser un archivo)");
+        return;
+    }
+    salida("ok: instalado ");
+    salida(args);
+    salida(" (bit de ejecutable activo)\n");
+}
+
+fn cmdAbrir(args: []const u8) void {
+    if (args.len == 0) {
+        fallo("uso: abrir <archivo>");
+        return;
+    }
+    const v = volActual() orelse return;
+    const idx = v.resolverDesde(cwd, args) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const e = v.entrada(idx) orelse {
+        fallo("no existe");
+        return;
+    };
+    if (e.tipo != fmt.TIPO_ARCHIVO) {
+        fallo("no es un archivo");
+        return;
+    }
+    const accion = alx.asociaciones.accionPara(args) orelse {
+        fallo("sin asociacion para esa extension (usa: asociar <ext> <accion>)");
+        return;
+    };
+    switch (accion) {
+        .ejecutar => cmdEjecutar(args),
+        .mostrar => cmdMostrar(args),
+        .editor => {
+            const nombre = e.nombre[0..e.nombre_len];
+            serial.puts("consola: abrir ");
+            serial.puts(nombre);
+            serial.puts(" con el editor\n");
+            gui.editorAbrir(idx, nombre);
+        },
+    }
+}
+
+fn nombreAccion(a: alx_def.Accion) []const u8 {
+    return switch (a) {
+        .editor => "editor",
+        .ejecutar => "ejecutar",
+        .mostrar => "mostrar",
+    };
+}
+
+fn cmdAsociar(args: []const u8) void {
+    if (args.len == 0) {
+        salida("asociaciones por extension:\n");
+        var i: usize = 0;
+        while (i < alx.asociaciones.n) : (i += 1) {
+            const a = &alx.asociaciones.entradas[i];
+            salida("  .");
+            salida(a.ext[0..a.ext_len]);
+            salida(" -> ");
+            salida(nombreAccion(a.accion));
+            salida("\n");
+        }
+        return;
+    }
+    // asociar <ext> <accion>
+    const sep = std.mem.indexOfScalar(u8, args, ' ') orelse {
+        fallo("uso: asociar <ext> <editor|ejecutar|mostrar>");
+        return;
+    };
+    const ext = args[0..sep];
+    const accion_txt = args[sep + 1 ..];
+    var accion: alx_def.Accion = .mostrar;
+    if (std.ascii.eqlIgnoreCase(accion_txt, "editor")) {
+        accion = .editor;
+    } else if (std.ascii.eqlIgnoreCase(accion_txt, "ejecutar")) {
+        accion = .ejecutar;
+    } else if (std.ascii.eqlIgnoreCase(accion_txt, "mostrar")) {
+        accion = .mostrar;
+    } else {
+        fallo("accion no valida (editor, ejecutar o mostrar)");
+        return;
+    }
+    if (!alx.asociaciones.asociar(ext, accion)) {
+        fallo("extension invalida (max 6 letras) o tabla llena");
+        return;
+    }
+    salida("ok: .");
+    salida(ext);
+    salida(" -> ");
+    salida(nombreAccion(accion));
+    salida("\n");
+}
+
+fn cmdAtributos(args: []const u8) void {
+    if (args.len == 0) {
+        fallo("uso: atributos <archivo>");
+        return;
+    }
+    const v = volActual() orelse return;
+    const idx = v.resolverDesde(cwd, args) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const e = v.entrada(idx) orelse return;
+    salida(args);
+    salida(": ");
+    salida(if (e.tipo == fmt.TIPO_DIRECTORIO) "directorio" else "archivo");
+    if (e.tipo == fmt.TIPO_ARCHIVO) {
+        salida(", ");
+        entero(e.tam);
+        salida(" bytes");
+        if ((e.flags & fmt.FLAG_EJECUTABLE) != 0) {
+            salida(", EJECUTABLE");
+        }
+    }
+    salida("\n");
+}
 
 // ---------------------------------------------------------------------------
 // bucle principal

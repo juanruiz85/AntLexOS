@@ -16,6 +16,9 @@ const pesos = @import("kernel/antlex/pesos.zig");
 const corpus = @import("kernel/antlex/corpus.zig");
 const raton = @import("kernel/raton.zig");
 const apps = @import("kernel/apps.zig");
+// Fase 7: definiciones del formato .ALX (puro; las apps y mkalx tienen
+// sus propios pasos de prueba en build.zig)
+const alx_def = @import("kernel/alx_def.zig");
 
 test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
@@ -25,6 +28,10 @@ test "alfs: ejecuta las pruebas del formato y del volumen" {
 
 test "reloj: ejecuta las pruebas del RTC (Zeller y formatos)" {
     _ = reloj;
+}
+
+test "fase 7: definiciones del formato .ALX (cabecera, asociaciones)" {
+    _ = alx_def;
 }
 
 // ---------------------------------------------------------------------------

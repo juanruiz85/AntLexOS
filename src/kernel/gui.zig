@@ -29,6 +29,8 @@ const fmt = @import("alfs_formato.zig");
 const interprete = @import("interprete.zig");
 const antlex = @import("antlex.zig");
 const apps = @import("apps.zig");
+const alx = @import("alx.zig");
+const alx_def = @import("alx_def.zig");
 const version = @import("version.zig");
 const x86 = @import("x86.zig");
 
@@ -54,9 +56,9 @@ const C_TINTA_SUAVE = pantalla.rgb(0x9A, 0xAA, 0xBC);
 const C_ACENTO = pantalla.rgb(0x5B, 0x9B, 0xF0);
 const C_ALERTA = pantalla.rgb(0xF2, 0xB8, 0x66);
 
-pub const TipoApp = enum(u2) { explorador = 0, editor = 1, acerca = 2, adivina = 3 };
+pub const TipoApp = enum(u3) { explorador = 0, editor = 1, acerca = 2, adivina = 3, app = 4 };
 
-const NOMBRE_APP = [4][]const u8{ "Explorador", "Editor", "Acerca de", "Adivina" };
+const NOMBRE_APP = [5][]const u8{ "Explorador", "Editor", "Acerca de", "Adivina", "Aplicacion" };
 
 /// Botones de la barra de tareas (coordenadas replicadas por el arnés).
 const AN_BOTON: u32 = 24; // alto
@@ -76,6 +78,15 @@ const BOTONES = [_]struct { x: u32, an: u32, texto: []const u8 }{
 
 const Foco = enum { terminal, chat, ventana };
 
+/// Nombre de una ventana para las trazas de serie (.app usa su título).
+fn nombreVentana(t: TipoApp) []const u8 {
+    if (t == .app) {
+        const v = &ventanas[@intFromEnum(t)];
+        if (v.app_titulo_len > 0) return v.app_titulo[0..v.app_titulo_len];
+    }
+    return NOMBRE_APP[@intFromEnum(t)];
+}
+
 const Ventana = struct {
     abierta: bool = false,
     x: i32 = 0,
@@ -90,13 +101,16 @@ const Ventana = struct {
     edit_idx: ?u16 = null,
     // juego Adivina (manual de aplicaciones)
     adv: apps.Adivina = .{},
+    // app externa .ALX (Fase 7): título dinámico puesto por la propia app
+    app_titulo: [24]u8 = undefined,
+    app_titulo_len: u8 = 0,
 };
 
 var escritorio_activo = false;
 var foco: Foco = .terminal;
 var foco_ventana: TipoApp = .explorador;
 // se inicializan en init() (así el array entero vive en .bss, no en .data)
-var ventanas: [4]Ventana = undefined;
+var ventanas: [5]Ventana = undefined;
 var menu_abierto = false;
 
 // arrastre de ventana
@@ -242,6 +256,7 @@ pub fn init() void {
     ventanas[@intFromEnum(TipoApp.editor)] = .{ .x = 150, .y = 90, .an = 480, .al = 330 };
     ventanas[@intFromEnum(TipoApp.acerca)] = .{ .x = 240, .y = 130, .an = 380, .al = 300 };
     ventanas[@intFromEnum(TipoApp.adivina)] = .{ .x = 330, .y = 170, .an = 340, .al = 230 };
+    ventanas[@intFromEnum(TipoApp.app)] = .{ .x = 300, .y = 140, .an = 320, .al = 240 };
 
     dibujarTodo();
     dibujarCursor();
@@ -384,6 +399,7 @@ fn tituloVentana(t: TipoApp, buf: []u8) []const u8 {
             break :blk std.fmt.bufPrint(buf, "Editor — {s}{s}", .{ base, if (v.edit.modificado) " *" else "" }) catch "Editor";
         },
         .acerca => std.fmt.bufPrint(buf, "Acerca de AntLex OS", .{}) catch "Acerca de",
+        .app => std.fmt.bufPrint(buf, "{s}", .{nombreVentana(.app)}) catch "Aplicacion",
     };
 }
 
@@ -408,7 +424,186 @@ fn dibujarVentana(t: TipoApp) void {
         .editor => dibujarEditor(v, x, y),
         .acerca => dibujarAcerca(x, y),
         .adivina => dibujarAdivina(v, x, y),
+        .app => despacharApp(&.{
+            .tipo = alx_def.EV_DIBUJAR,
+            .tecla = 0,
+            .x = @as(i32, @intCast(x)) + 2,
+            .y = @as(i32, @intCast(y)) + @as(i32, ALT_TITULO_V) + 2,
+            .an = v.an - 4,
+            .al = v.al - ALT_TITULO_V - 4,
+        }),
     }
+}
+
+// ---------------------------------------------------------------------------
+// Fase 7 — API de aplicaciones externas (.ALX)
+// ---------------------------------------------------------------------------
+
+/// Origen del área de cliente mientras se atiende un evento de la app.
+var alx_origen_x: i32 = 0;
+var alx_origen_y: i32 = 0;
+/// `tam()` solo se acepta durante EV_INIT.
+var alx_en_init = false;
+
+/// Entrega un evento a la app externa cargada (si la hay).
+fn despacharApp(ev: *const alx_def.Evento) void {
+    const entrada = alx.entrada() orelse return;
+    alx_origen_x = ev.x;
+    alx_origen_y = ev.y;
+    entrada(&api_alx, ev);
+}
+
+const api_alx = alx_def.Api{
+    .texto = alxTexto,
+    .textoLim = alxTextoLim,
+    .rect = alxRect,
+    .bisel = alxBisel,
+    .tam = alxTam,
+    .titulo = alxTitulo,
+    .tics = alxTics,
+    .hora = alxHora,
+    .consola = alxConsola,
+    .leer = alxLeer,
+    .escribir = alxEscribir,
+};
+
+fn alxTexto(x: i32, y: i32, str: [*:0]const u8, color: u32) callconv(.c) void {
+    const px = alx_origen_x + x;
+    const py = alx_origen_y + y;
+    if (px < 0 or py < 0) return;
+    texto(@intCast(px), @intCast(py), std.mem.span(str), color);
+}
+
+fn alxTextoLim(x: i32, y: i32, str: [*:0]const u8, color: u32, max: u32) callconv(.c) void {
+    const px = alx_origen_x + x;
+    const py = alx_origen_y + y;
+    if (px < 0 or py < 0) return;
+    textoLim(@intCast(px), @intCast(py), std.mem.span(str), color, max);
+}
+
+fn alxRect(x: i32, y: i32, an: u32, al: u32, color: u32) callconv(.c) void {
+    const px = alx_origen_x + x;
+    const py = alx_origen_y + y;
+    if (px < 0 or py < 0) return;
+    pantalla.rect(@intCast(px), @intCast(py), an, al, color);
+}
+
+/// Relieve biselado 3D: claro arriba/izquierda, oscuro abajo/derecha
+/// (invertido si está hundido). El estilo del escritorio de la Fase 8.
+fn alxBisel(x: i32, y: i32, an: u32, al: u32, hundido: bool) callconv(.c) void {
+    const claro = pantalla.rgb(0xEF, 0xEF, 0xE3);
+    const oscuro = pantalla.rgb(0x50, 0x50, 0x46);
+    const arriba = if (hundido) oscuro else claro;
+    const abajo = if (hundido) claro else oscuro;
+    alxRect(x, y, an, 1, arriba);
+    alxRect(x, y, 1, al, arriba);
+    alxRect(x, y + @as(i32, @intCast(al)) - 1, an, 1, abajo);
+    alxRect(x + @as(i32, @intCast(an)) - 1, y, 1, al, abajo);
+}
+
+fn alxTam(an: u32, al: u32) callconv(.c) void {
+    if (!alx_en_init) return; // solo durante EV_INIT
+    const v = &ventanas[@intFromEnum(TipoApp.app)];
+    v.an = @min(@max(an, 120), 600);
+    v.al = @min(@max(al, 80), 400);
+}
+
+fn alxTitulo(str: [*:0]const u8) callconv(.c) void {
+    const v = &ventanas[@intFromEnum(TipoApp.app)];
+    const t = std.mem.span(str);
+    const l = @min(t.len, v.app_titulo.len);
+    @memcpy(v.app_titulo[0..l], t[0..l]);
+    v.app_titulo_len = @intCast(l);
+}
+
+fn alxTics() callconv(.c) u32 {
+    return @truncate(pit.leerTics());
+}
+
+fn alxHora() callconv(.c) u32 {
+    const f = reloj.leer();
+    return (@as(u32, f.hora) * 100 + f.min) * 100 + f.seg;
+}
+
+fn alxConsola(str: [*:0]const u8) callconv(.c) void {
+    const t = std.mem.span(str);
+    consola.puts(t);
+    serial.puts(t);
+}
+
+fn alxLeer(ruta: [*:0]const u8, buf: [*]u8, cap: u32) callconv(.c) i32 {
+    if (!alfs.montado()) return -1;
+    const vol = alfs.actual() orelse return -1;
+    const idx = vol.resolver(std.mem.span(ruta)) catch return -1;
+    const tam = vol.tamDe(idx) catch return -1;
+    if (tam > cap) return -1;
+    const n = vol.leer(idx, buf[0..tam]) catch return -1;
+    return @intCast(n);
+}
+
+fn alxEscribir(ruta: [*:0]const u8, buf: [*]const u8, len: u32) callconv(.c) i32 {
+    if (!alfs.montado()) return -1;
+    const vol = alfs.actual() orelse return -1;
+    const rp = std.mem.span(ruta);
+    const contenido = buf[0..len];
+    if (vol.resolver(rp)) |idx| {
+        vol.escribir(idx, contenido) catch return -1;
+    } else |_| {
+        // crear: separar padre y nombre por la última '/'
+        const i = std.mem.lastIndexOfScalar(u8, rp, '/') orelse return -1;
+        if (i == 0 or i + 1 >= rp.len) return -1;
+        const padre = vol.resolver(rp[0..i]) catch return -1;
+        _ = vol.crear(padre, rp[i + 1 ..], fmt.TIPO_ARCHIVO, contenido) catch return -1;
+    }
+    alfs.marcar();
+    return 0;
+}
+
+/// Carga la app .ALX `idx` y abre su ventana (desde `ejecutar`, `abrir`
+/// o el doble clic del explorador). Devuelve false con el error en consola.
+pub fn abrirApp(idx: u16) bool {
+    if (ventanas[@intFromEnum(TipoApp.app)].abierta) cerrarVentana(.app);
+    const entrada = alx.cargar(idx) catch |err| {
+        const msg = switch (err) {
+            alx.Error.SinAlfs => "ALFS no esta montado",
+            alx.Error.TamGrande => "el .ALX es demasiado grande",
+            alx.Error.CabeceraInvalida => "cabecera .ALX invalida",
+            alx.Error.SinMemoria => "sin memoria para cargar la app",
+            alx.Error.LecturaAlfs => "fallo leyendo el .ALX",
+        };
+        consola.puts("error: ");
+        consola.puts(msg);
+        consola.puts("\n");
+        serial.puts("alx: error: ");
+        serial.puts(msg);
+        serial.puts("\n");
+        return false;
+    };
+    _ = entrada;
+    const v = &ventanas[@intFromEnum(TipoApp.app)];
+    v.abierta = false; // la abre abrirVentana()
+    v.x = 300;
+    v.y = 140;
+    v.an = 320;
+    v.al = 240;
+    v.app_titulo_len = 0;
+    const t = alx.nombreStr();
+    const l = @min(t.len, v.app_titulo.len);
+    @memcpy(v.app_titulo[0..l], t[0..l]);
+    v.app_titulo_len = @intCast(l);
+    // EV_INIT: la app define título y tamaño antes del primer dibujado
+    alx_en_init = true;
+    despacharApp(&.{
+        .tipo = alx_def.EV_INIT,
+        .tecla = 0,
+        .x = v.x + 2,
+        .y = v.y + @as(i32, ALT_TITULO_V) + 2,
+        .an = v.an - 4,
+        .al = v.al - ALT_TITULO_V - 4,
+    });
+    alx_en_init = false;
+    abrirVentana(.app);
+    return true;
 }
 
 fn dibujarAdivina(v: *Ventana, x: u32, y: u32) void {
@@ -508,7 +703,7 @@ fn dibujarAcerca(x: u32, y: u32) void {
 const CtxExpl = struct { e: *apps.Explorador };
 
 fn cbHijos(ctx: *CtxExpl, idx: u16, ent: *const fmt.Entrada) void {
-    apps.explAnadir(ctx.e, idx, ent.tipo, ent.nombre[0..ent.nombre_len]);
+    apps.explAnadir(ctx.e, idx, ent.tipo, ent.flags, ent.nombre[0..ent.nombre_len]);
 }
 
 fn explListar(v: *Ventana) void {
@@ -525,7 +720,7 @@ fn abrirVentana(t: TipoApp) void {
     if (!v.abierta) {
         v.abierta = true;
         serial.puts("gui: ventana abierta ");
-        serial.puts(NOMBRE_APP[@intFromEnum(t)]);
+        serial.puts(nombreVentana(t));
         serial.puts("\n");
     }
     if (t == .explorador) explListar(v);
@@ -540,8 +735,12 @@ fn cerrarVentana(t: TipoApp) void {
     const v = &ventanas[@intFromEnum(t)];
     if (!v.abierta) return;
     v.abierta = false;
+    if (t == .app) { // Fase 7: avisar y descargar la app externa
+        despacharApp(&.{ .tipo = alx_def.EV_CERRAR, .tecla = 0, .x = 0, .y = 0, .an = 0, .al = 0 });
+        alx.descargar();
+    }
     serial.puts("gui: ventana cerrada ");
-    serial.puts(NOMBRE_APP[@intFromEnum(t)]);
+    serial.puts(nombreVentana(t));
     serial.puts("\n");
     if (arrastre != null and arrastre.?.tipo == t) arrastre = null;
     if (foco == .ventana and foco_ventana == t) enfocar(.terminal);
@@ -552,7 +751,7 @@ fn enfocarVentana(t: TipoApp) void {
     foco = .ventana;
     foco_ventana = t;
     serial.puts("gui: foco ventana ");
-    serial.puts(NOMBRE_APP[@intFromEnum(t)]);
+    serial.puts(nombreVentana(t));
     serial.puts("\n");
     dibujarTodo();
 }
@@ -564,8 +763,8 @@ fn enfocar(f: Foco) void {
     dibujarTodo();
 }
 
-/// Abre el archivo `idx` en el editor (desde el explorador).
-fn editorAbrir(idx: u16, nombre: []const u8) void {
+/// Abre el archivo `idx` en el editor (desde el explorador o `abrir`).
+pub fn editorAbrir(idx: u16, nombre: []const u8) void {
     const v = &ventanas[@intFromEnum(TipoApp.editor)];
     if (!alfs.montado()) {
         serial.puts("gui: editor sin ALFS montado\n");
@@ -627,6 +826,19 @@ fn explAbrir(v: *Ventana, f: *const apps.FilaExpl) void {
         serial.puts(nombre);
         serial.puts("\n");
         dibujarTodo();
+    } else if (alx_def.esAlx(nombre)) {
+        // ejecutable .ALX: hace falta el bit de ejecutable (instalar)
+        if (alx.esEjecutable(idx)) {
+            _ = abrirApp(idx);
+        } else {
+            serial.puts("gui: explorador: sin bit de ejecutable\n");
+            consola.puts("aviso: ");
+            consola.puts(nombre);
+            consola.puts(" no es ejecutable (usa 'instalar ");
+            consola.puts(nombre);
+            consola.puts("')\n");
+            dibujarTodo();
+        }
     } else {
         editorAbrir(idx, nombre);
     }
@@ -697,6 +909,22 @@ fn procesarTecla(c: u8) void {
                 },
                 .acerca => {
                     if (c == teclado.ESC) cerrarVentana(.acerca);
+                },
+                .app => {
+                    if (c == teclado.ESC) {
+                        cerrarVentana(.app);
+                        return;
+                    }
+                    const va = &ventanas[@intFromEnum(TipoApp.app)];
+                    despacharApp(&.{
+                        .tipo = alx_def.EV_TECLA,
+                        .tecla = c,
+                        .x = va.x + 2,
+                        .y = va.y + @as(i32, ALT_TITULO_V) + 2,
+                        .an = va.an - 4,
+                        .al = va.al - ALT_TITULO_V - 4,
+                    });
+                    dibujarTodo();
                 },
                 .adivina => {
                     if (c == teclado.ESC) {
@@ -940,6 +1168,19 @@ pub fn bucle() noreturn {
         if (s != ult_seg) {
             ult_seg = s;
             dibujarBarraInfo();
+            // Fase 7: la app externa recibe un tick por segundo (relojes…)
+            if (ventanas[@intFromEnum(TipoApp.app)].abierta) {
+                const va = &ventanas[@intFromEnum(TipoApp.app)];
+                despacharApp(&.{
+                    .tipo = alx_def.EV_TICK,
+                    .tecla = 0,
+                    .x = va.x + 2,
+                    .y = va.y + @as(i32, ALT_TITULO_V) + 2,
+                    .an = va.an - 4,
+                    .al = va.al - ALT_TITULO_V - 4,
+                });
+                dibujarTodo();
+            }
         }
     }
 }

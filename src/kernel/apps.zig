@@ -209,6 +209,7 @@ pub const EXPLORADOR_MAX_FILAS = 48;
 pub const EXPLORADOR_MAX_NOMBRE = 45;
 
 pub const FilaExpl = struct {
+    flags: u8 = 0,
     nombre: [EXPLORADOR_MAX_NOMBRE]u8 = undefined,
     nombre_len: u8 = 0,
     tipo: u8 = TIPO_ARCHIVO,
@@ -232,12 +233,13 @@ pub const Explorador = struct {
 };
 
 /// Añade una entrada (lo llama el pegamento de ALFS en gui.zig).
-pub fn explAnadir(e: *Explorador, idx: u16, tipo: u8, nombre: []const u8) void {
+pub fn explAnadir(e: *Explorador, idx: u16, tipo: u8, flags: u8, nombre: []const u8) void {
     if (e.n >= EXPLORADOR_MAX_FILAS) return;
     const l = @min(nombre.len, EXPLORADOR_MAX_NOMBRE);
     @memcpy(e.entradas[e.n].nombre[0..l], nombre[0..l]);
     e.entradas[e.n].nombre_len = @intCast(l);
     e.entradas[e.n].tipo = tipo;
+    e.entradas[e.n].flags = flags;
     e.entradas[e.n].idx = idx;
     e.n += 1;
 }
@@ -299,17 +301,18 @@ test "editor: límites respetados" {
 
 test "explorador: añadir, mover y seleccionar" {
     var e = Explorador{};
-    explAnadir(&e, 3, TIPO_DIR, "documentos");
-    explAnadir(&e, 7, TIPO_ARCHIVO, "LEEME.TXT");
-    explAnadir(&e, 9, TIPO_ARCHIVO, "DATOS.TXT");
+    explAnadir(&e, 3, TIPO_DIR, 0, "documentos");
+    explAnadir(&e, 7, TIPO_ARCHIVO, 0, "LEEME.TXT");
+    explAnadir(&e, 9, TIPO_ARCHIVO, 1, "CALC.ALX"); // bit de ejecutable
     try testing.expectEqual(@as(u16, 3), e.n);
+    try testing.expectEqual(@as(u8, 1), e.entradas[2].flags);
     explMover(&e, 1);
     try testing.expectEqualStrings("documentos", e.seleccionada().?.nombreStr());
     explMover(&e, 1);
     explMover(&e, 1);
-    try testing.expectEqualStrings("DATOS.TXT", e.seleccionada().?.nombreStr());
+    try testing.expectEqualStrings("CALC.ALX", e.seleccionada().?.nombreStr());
     explMover(&e, 99); // acotado al final
-    try testing.expectEqualStrings("DATOS.TXT", e.seleccionada().?.nombreStr());
+    try testing.expectEqualStrings("CALC.ALX", e.seleccionada().?.nombreStr());
     explMover(&e, -99); // hasta deseleccionar
     try testing.expect(e.seleccionada() == null);
 }

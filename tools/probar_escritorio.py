@@ -21,6 +21,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from probar_antlex import Qmp, teclear_con_igual  # teclado ES con = y /  # noqa: E402
+from probar_alx import teclear_mas  # '+' y '*' con el mapa español (Fase 7)  # noqa: E402
 
 QEMU = os.environ.get("QEMU_BIN", "qemu-system-x86_64")
 
@@ -233,6 +234,26 @@ def main():
         paso("foco terminal", "gui: foco terminal", ref, serial_path)
         teclear_con_igual(qmp, "mostrar ejemplos/datos.txt"); qmp.tecla("ret"); time.sleep(1.0)
         paso("contenido editado visible", "Linea nueva del editor.", ref, serial_path)
+
+        # 7b) Fase 7 — app externa .ALX desde el explorador: subir a la
+        #     raíz, entrar en APPS y abrir CALC.ALX con clic + INTRO
+        #     (el mismo camino que el doble clic)
+        r.clic(*EXPL_FILA(0))               # re-enfocar el explorador
+        qmp.tecla("backspace"); time.sleep(0.5)
+        paso("explorador sube a la raíz", "gui: explorador sube", ref, serial_path)
+        r.clic(*EXPL_FILA(4))               # fila 4 del raíz = APPS
+        qmp.tecla("ret"); time.sleep(0.5)
+        paso("explorador entra APPS", "gui: explorador entra APPS", ref, serial_path)
+        r.clic(*EXPL_FILA(0))               # CALC.ALX
+        qmp.tecla("ret"); time.sleep(0.8)
+        paso("alx: cargada CALC", "alx: cargada CALC", ref, serial_path)
+        paso("ventana Calculadora", "gui: ventana abierta Calculadora", ref, serial_path)
+        paso("foco Calculadora", "gui: foco ventana Calculadora", ref, serial_path)
+        teclear_mas(qmp, "12+34=")
+        paso("la calculadora calcula", "calculadora: 12 + 34 = 46", ref, serial_path)
+        qmp.tecla("esc"); time.sleep(0.5)
+        paso("app descargada", "alx: descargada CALC", ref, serial_path)
+        paso("Calculadora cerrada", "gui: ventana cerrada Calculadora", ref, serial_path)
 
         # 8) chat de AntLex
         r.clic(*BOTONES["chat"])

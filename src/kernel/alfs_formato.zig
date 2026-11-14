@@ -30,6 +30,10 @@ pub const TIPO_LIBRE: u8 = 0;
 pub const TIPO_ARCHIVO: u8 = 1;
 pub const TIPO_DIRECTORIO: u8 = 2;
 
+/// Flags de la entrada (byte `flags`, reservado 0 en v1.0.0–v1.1.0:
+/// retrocompatible — los volúmenes antiguos se leen sin cambios).
+pub const FLAG_EJECUTABLE: u8 = 0x01; // el archivo es una app .ALX instalada
+
 /// Tamaño máximo de archivo soportado por el formato (cap de seguridad).
 pub const TAM_MAX_ARCHIVO: u32 = 4 * 1024 * 1024;
 /// Profundidad máxima de rutas (componentes) al resolver.

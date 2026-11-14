@@ -21,6 +21,11 @@ pub fn build(b: *std.Build) void {
     const mod_alfs_volumen = b.createModule(.{
         .root_source_file = b.path("src/kernel/alfs_volumen.zig"),
     });
+    // Fase 7: definiciones .ALX compartidas por apps externas, mkalx y pruebas
+    // (el kernel las importa de forma relativa; los demás, por módulo)
+    const mod_alx_def = b.createModule(.{
+        .root_source_file = b.path("src/kernel/alx_def.zig"),
+    });
     const layout_opts = b.addOptions();
     layout_opts.addOption(u64, "kernel_off", lay.kernel_off);
     layout_opts.addOption(u64, "kernel_load_addr", lay.kernel_load_addr);
@@ -133,6 +138,48 @@ pub fn build(b: *std.Build) void {
     correr_mkalfs.addArg(b.fmt("{d}", .{lay.alfs_size}));
     correr_mkalfs.step.dependOn(&mki.step);
 
+    // ------------------------------------------------------------------
+    // Fase 7: apps externas .ALX — se compilan como ELF freestanding en
+    // 16 MiB (apps/app.ld), mkalx las convierte y mkalfs las instala en
+    // /APPS con el bit de ejecutable
+    // ------------------------------------------------------------------
+    const t_app = b.resolveTargetQuery(.{ .cpu_arch = .x86_64, .os_tag = .freestanding, .abi = .none });
+    const mkalx = b.addExecutable(.{
+        .name = "mkalx",
+        .root_source_file = b.path("tools/mkalx.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    mkalx.root_module.addImport("alx_def", mod_alx_def);
+    const AppsAlx = struct { fuente: []const u8, nombre: []const u8 };
+    const apps_alx = [_]AppsAlx{
+        .{ .fuente = "apps/calculadora.zig", .nombre = "CALC" },
+        .{ .fuente = "apps/reloj.zig", .nombre = "RELOJ" },
+    };
+    for (apps_alx) |app| {
+        const exe = b.addExecutable(.{
+            .name = app.nombre,
+            .root_source_file = b.path(app.fuente),
+            .target = t_app,
+            .optimize = .ReleaseSafe,
+        });
+        exe.root_module.red_zone = false; // igual que el kernel
+        exe.root_module.stack_protector = false;
+        exe.setLinkerScript(b.path("apps/app.ld"));
+        exe.entry = .{ .symbol_name = "alx_evento" };
+        exe.root_module.addImport("alx_def", mod_alx_def);
+        const correr_mkalx = b.addRunArtifact(mkalx);
+        correr_mkalx.addFileArg(exe.getEmittedBin());
+        correr_mkalx.addArg(app.nombre);
+        const alx = correr_mkalx.addOutputFileArg(b.fmt("{s}.ALX", .{app.nombre}));
+        correr_mkalx.step.dependOn(&exe.step);
+        // registrar en el volumen ALFS de la imagen
+        correr_mkalfs.addArg("--app");
+        correr_mkalfs.addFileArg(alx);
+        correr_mkalfs.addArg(b.fmt("{s}.ALX", .{app.nombre}));
+        correr_mkalfs.step.dependOn(&correr_mkalx.step);
+    }
+
     const inst_img = b.addInstallFile(img, "antlexos.img");
     b.getInstallStep().dependOn(&inst_img.step);
     const inst_s2cd = b.addInstallFile(out_s2cd, "stage2_cd.bin");
@@ -176,6 +223,23 @@ pub fn build(b: *std.Build) void {
     const correr = b.addRunArtifact(pruebas);
     const paso_test = b.step("test", "Pruebas unitarias en host");
     paso_test.dependOn(&correr.step);
+    // Fase 7: pruebas propias de la calculadora (.ALX) y del conversor
+    // mkalx — los módulos importados no exponen sus test al grafo raíz,
+    // así que cada uno corre como paso de pruebas independiente
+    const t_pruebas_f7 = b.addTest(.{
+        .root_source_file = b.path("apps/calculadora.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    t_pruebas_f7.root_module.addImport("alx_def", mod_alx_def);
+    paso_test.dependOn(&b.addRunArtifact(t_pruebas_f7).step);
+    const t_pruebas_mkalx = b.addTest(.{
+        .root_source_file = b.path("tools/mkalx.zig"),
+        .target = b.graph.host,
+        .optimize = .Debug,
+    });
+    t_pruebas_mkalx.root_module.addImport("alx_def", mod_alx_def);
+    paso_test.dependOn(&b.addRunArtifact(t_pruebas_mkalx).step);
 
     // ------------------------------------------------------------------
     // Arranque de prueba en QEMU (BIOS y UEFI)

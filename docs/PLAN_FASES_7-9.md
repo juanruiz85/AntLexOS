@@ -101,9 +101,18 @@ Editor de texto y gestor de archivos ya existen como apps del sistema
 
 | Hito | Qué | Commit | Estado |
 |---|---|---|---|
-| A | Este plan + registro duradero | — | ✅ |
-| B | Kernel + loader + apps CALC/RELOJ funcionando (build, 44+ pruebas host, arneses) | — | 🔨 |
+| A | Este plan + registro duradero | fdaab8d | ✅ |
+| B | Kernel + loader + apps CALC/RELOJ funcionando | (este commit) | ✅ |
 | C | Documentación (manuales, CHANGELOG, PRUEBAS), auditoría REV-v1.2.0, batería completa | — | ⏳ |
+
+**Hito B — verificado (2026-11-14)**: 54/54 pruebas host (44 previas + 4 de
+alx_def + 3 de la calculadora + 2 de mkalx + 1 de registro) · arnés nuevo
+`probar_alx.py` **20/20** (bit, carga, ventana, foco, 4 cálculos con teclado
+ES real, error controlado 9/0=E, descarga con ESC, asociaciones, `abrir`
+Reloj con captura de píxeles, errores útiles, re-ejecución) ·
+`probar_escritorio.py` **41/41** (8 pasos nuevos: explorador → /APPS →
+CALC.ALX con clic+INTRO, cálculo, cierre) · boot BIOS/UEFI, ISO 6/6 y 7/7,
+ALFS, AntLex 24/24, auditar.py y fmt en verde.
 
 ---
 

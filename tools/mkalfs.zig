@@ -25,12 +25,23 @@ pub fn main() !void {
     const arena = arena_state.allocator();
 
     const args = try std.process.argsAlloc(arena);
-    if (args.len != 6) {
+    if (args.len < 6) {
         std.debug.print(
-            "uso: mkalfs.zig <img_entrada> <dir_fsroot> <img_salida> <alfs_off> <alfs_size>\n",
+            "uso: mkalfs.zig <img_entrada> <dir_fsroot> <img_salida> <alfs_off> <alfs_size> [--app <archivo> <nombre>]...\n",
             .{},
         );
         return error.Uso;
+    }
+    // apps externas .ALX (Fase 7): pares --app <archivo> <nombre>
+    const AppArg = struct { ruta: []const u8, nombre: []const u8 };
+    var apps_alx = std.ArrayList(AppArg).init(arena);
+    var ai: usize = 6;
+    while (ai < args.len) : (ai += 3) {
+        if (ai + 2 >= args.len or !std.mem.eql(u8, args[ai], "--app")) {
+            std.debug.print("mkalfs: uso: --app <archivo> <nombre>\n", .{});
+            return error.Uso;
+        }
+        try apps_alx.append(.{ .ruta = args[ai + 1], .nombre = args[ai + 2] });
     }
     const ruta_in = args[1];
     const ruta_fsroot = args[2];
@@ -61,6 +72,24 @@ pub fn main() !void {
     var total_dirs: u32 = 0;
     var total_bytes: u64 = 0;
     try agregarArbol(&v, arena, &raiz_fs, fmt.RAIZ, &total_archivos, &total_dirs, &total_bytes);
+
+    // apps externas .ALX: siempre en /APPS y con el bit de ejecutable
+    if (apps_alx.items.len > 0) {
+        const dir_apps = v.buscarHijo(fmt.RAIZ, "APPS") orelse
+            v.crear(fmt.RAIZ, "APPS", fmt.TIPO_DIRECTORIO, "") catch |err| return err;
+        for (apps_alx.items) |a| {
+            const datos = try std.fs.cwd().readFileAlloc(arena, a.ruta, fmt.TAM_MAX_ARCHIVO);
+            const idx = v.crear(dir_apps, a.nombre, fmt.TIPO_ARCHIVO, datos) catch |err| {
+                std.debug.print("mkalfs: error creando app '{s}': {s}\n", .{ a.nombre, @errorName(err) });
+                return err;
+            };
+            if (v.entrada(idx)) |e| e.flags |= fmt.FLAG_EJECUTABLE;
+            total_archivos += 1;
+            total_bytes += datos.len;
+            std.debug.print("mkalfs: app instalada /APPS/{s} ({d} bytes, ejecutable)\n", .{ a.nombre, datos.len });
+        }
+        total_dirs += 1; // /APPS
+    }
 
     // verificación final: el volumen debe reabrirse limpio
     _ = try vol.Volumen.abrir(region);
@@ -111,10 +140,14 @@ fn agregarArbol(
             },
             .file => {
                 const datos = try dir.readFileAlloc(arena, e.nombre, fmt.TAM_MAX_ARCHIVO);
-                _ = v.crear(padre, e.nombre, fmt.TIPO_ARCHIVO, datos) catch |err| {
+                const idx = v.crear(padre, e.nombre, fmt.TIPO_ARCHIVO, datos) catch |err| {
                     std.debug.print("mkalfs: error creando archivo '{s}': {s}\n", .{ e.nombre, @errorName(err) });
                     return err;
                 };
+                // Fase 7: los .ALX de fsroot se instalan (bit de ejecutable)
+                if (std.mem.endsWith(u8, e.nombre, ".alx") or std.mem.endsWith(u8, e.nombre, ".ALX")) {
+                    if (v.entrada(idx)) |en| en.flags |= fmt.FLAG_EJECUTABLE;
+                }
                 total_archivos.* += 1;
                 total_bytes.* += datos.len;
             },
