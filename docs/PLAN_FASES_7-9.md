@@ -169,7 +169,9 @@ propietario; se reinterpreta con gráficos propios):
 
 | Hito | Qué | Commit | Estado |
 |---|---|---|---|
-| — | Por empezar (arrancar tras cerrar la Fase 7) | — | ⏳ |
+| 8a | Kernel: cromo 3D, iconos, Program Manager, minimizar/maximizar, menús, Alt+Tab/F4, resize; stage2 copia en PM (bug GDT) | (este commit) | ✅ boot BIOS/UEFI + captura por píxeles + serial (movida, alt-tab, cascada, calculadora, grupos) |
+| 8b | Arnés `probar_escritorio.py` reescrito (40+ pasos): en ajuste de tiempos y solape Accesorios/Explorador | — | 🔨 |
+| 8c | Docs (manuales, PRUEBAS, README, REV-v1.3.0-dev) y batería final | — | ⏳ |
 
 ---
 

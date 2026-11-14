@@ -30,6 +30,7 @@ pub fn build(b: *std.Build) void {
     layout_opts.addOption(u64, "kernel_off", lay.kernel_off);
     layout_opts.addOption(u64, "kernel_load_addr", lay.kernel_load_addr);
     layout_opts.addOption(u64, "kernel_max_size", lay.kernel_max_size);
+    layout_opts.addOption(u64, "kernel_img_max", lay.kernel_img_max);
     layout_opts.addOption(u64, "alfs_off", lay.alfs_off);
     layout_opts.addOption(u64, "alfs_size", lay.alfs_size);
     layout_opts.addOption(u32, "boot_magic", lay.boot_magic);

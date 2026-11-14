@@ -82,6 +82,18 @@ pub const Consola = struct {
         self.region(0, 0, pantalla.anchoPix(), pantalla.altoPix());
     }
 
+    /// Como region() pero CONSERVANDO el cursor y el contenido: para mover
+    /// o estirar la ventana de la consola (Fase 8) sin perder la línea en
+    /// curso. Mover la ventana (mismo tamaño) no toca el cursor; al
+    /// estrechar, el cursor se acota (la línea en curso se reescribe).
+    pub fn recolocar(self: *Consola, x: u32, y: u32, an_pix: u32, al_pix: u32) void {
+        const cx_prev = self.cx;
+        const cy_prev = self.cy;
+        self.region(x, y, an_pix, al_pix);
+        self.cx = if (cx_prev < self.cols) cx_prev else 0;
+        self.cy = if (cy_prev < self.filas) cy_prev else self.filas - 1;
+    }
+
     pub fn limpiar(self: *Consola) void {
         self.llenar(' ');
         self.redibujar();
@@ -261,6 +273,11 @@ pub fn limpiar() void {
 
 pub fn reubicar(x: u32, y: u32, an_pix: u32, al_pix: u32) void {
     defecto.region(x, y, an_pix, al_pix);
+}
+
+/// Como reubicar pero conservando el contenido (ventanas de la GUI, Fase 8).
+pub fn recolocarGlobal(x: u32, y: u32, an_pix: u32, al_pix: u32) void {
+    defecto.recolocar(x, y, an_pix, al_pix);
 }
 
 pub fn fijarEstilo(e: Estilo) void {

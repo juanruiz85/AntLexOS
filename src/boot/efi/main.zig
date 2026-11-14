@@ -33,6 +33,7 @@ const layout_opts = @import("layout_opts");
 const KERNEL_OFF: u64 = layout_opts.kernel_off;
 const KERNEL_LOAD: u64 = layout_opts.kernel_load_addr;
 const KERNEL_MAX: u64 = layout_opts.kernel_max_size;
+const KERNEL_IMG_MAX: u64 = layout_opts.kernel_img_max; // archivo+bss en memoria
 const BOOT_MAGIC: u32 = layout_opts.boot_magic;
 
 fn printf(comptime fmt: []const u8, args: anytype) void {
@@ -121,7 +122,7 @@ pub fn main() void {
         printf("entry_off fuera del kernel: {d}", .{cabecera.entry_off});
         while (true) asm volatile ("hlt");
     }
-    if (cabecera.bss_off > KERNEL_MAX or cabecera.bss_size > KERNEL_MAX - cabecera.bss_off) {
+    if (cabecera.bss_off > KERNEL_IMG_MAX or cabecera.bss_size > KERNEL_IMG_MAX - cabecera.bss_off) {
         printf("rango .bss fuera del kernel: +{d} x{d}", .{ cabecera.bss_off, cabecera.bss_size });
         while (true) asm volatile ("hlt");
     }

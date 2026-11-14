@@ -78,9 +78,10 @@ stage2:
         TRAZA 'H'
         cmp dword [HDR_ADDR], 0x524B4C41   ; "ALKR"
         jne err_kernel
-        ; acotar kernel_size al máximo que puede cargar el cargador (768 KiB):
-        ; una cabecera corrupta no debe desbordar la zona de carga
-        cmp dword [HDR_ADDR+20], 768*1024
+        ; acotar kernel_size al máximo que puede cargar el cargador
+        ; (576 KiB: el staging 0x10000..0xA0000 no debe tocar los búferes
+        ; VESA de 0xA0000); una cabecera corrupta no debe desbordar la carga
+        cmp dword [HDR_ADDR+20], 576*1024
         ja err_kernel
         ; y un tamaño cero también es una cabecera corrupta
         cmp dword [HDR_ADDR+20], 0
@@ -261,6 +262,16 @@ pm_entry:
         mov fs, ax
         mov gs, ax
 
+        ; --- copiar kernel: staging (0x10000) -> 0x100000 ---
+        ; EN MODO PROTEGIDO y ANTES de construir las tablas de páginas:
+        ; estas viven en 0x90000..0x96000 y con kernels grandes el staging
+        ; llega a pisarlas; copiando aquí da igual (el staging ya no se usa)
+        mov esi, KLOAD
+        mov edi, KBASE
+        mov ecx, [k_size]
+        cld
+        rep movsb
+
         ; --- tablas de páginas: identidad 4 GiB con páginas de 2 MiB ---
         mov edi, PT_PML4
         xor eax, eax
@@ -336,13 +347,7 @@ lm_entry:
         mov rsp, 0x7C00
         TRAZA 'L'
 
-        ; copiar kernel 0x10000 -> 0x100000
-        mov rsi, KLOAD
-        mov rdi, KBASE
-        mov ecx, [k_size]
-        cld
-        rep movsb
-
+        ; el kernel ya se copió a 0x100000 desde el modo protegido
         ; borrar .bss
         mov rdi, KBASE
         mov r8d, [HDR_ADDR+12]              ; bss_off

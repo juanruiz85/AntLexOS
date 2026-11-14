@@ -27,9 +27,19 @@ const gui = @import("gui.zig");
 // pila propia del kernel: 64 KiB en .bss
 var pila: [64 * 1024]u8 align(16) linksection(".bss") = undefined;
 
-pub fn panic(mensaje: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
+pub fn panic(mensaje: []const u8, st: ?*std.builtin.StackTrace, dir: ?usize) noreturn {
     serial.puts("\n=== PANICO DEL KERNEL ===\n");
     serial.puts(mensaje);
+    var buf: [32]u8 = undefined;
+    const dir_txt = std.fmt.bufPrint(&buf, " @ 0x{x}\n", .{dir orelse 0}) catch "";
+    serial.puts(dir_txt);
+    if (st) |traza| {
+        var k: usize = 0;
+        while (k < traza.index and k < 10) : (k += 1) {
+            const t2 = std.fmt.bufPrint(&buf, "  # {d} 0x{x}\n", .{ k, traza.instruction_addresses[k] }) catch break;
+            serial.puts(t2);
+        }
+    }
     serial.puts("\nSistema detenido.\n");
     x86.cli();
     while (true) x86.hlt();

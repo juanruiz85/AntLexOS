@@ -14,6 +14,7 @@ pub const INICIO: u8 = 0x85;
 pub const FIN: u8 = 0x86;
 pub const CTRL_C: u8 = 0x03; // interrupción de línea
 pub const F2: u8 = 0x87; // guardar (editor de la GUI)
+pub const F4: u8 = 0x89; // cerrar ventana (Alt+F4, Fase 8)
 pub const ESC: u8 = 0x88; // cerrar ventana (GUI)
 
 // teclas muertas internas
@@ -185,6 +186,11 @@ fn empujar(c: u8) void {
     @atomicStore(usize, &escrito, sig, .release);
 }
 
+/// ¿Está pulsada la tecla Alt? (para Alt+Tab / Alt+F4 / Alt+Espacio).
+pub fn altPulsada() bool {
+    return alt;
+}
+
 /// Saca un carácter del búfer (o null si está vacío).
 pub fn poll() ?u8 {
     const lei = @atomicLoad(usize, &leido, .acquire);
@@ -275,6 +281,10 @@ pub fn irq() void {
     switch (code) {
         0x3C => { // F2
             empujar(F2);
+            return;
+        },
+        0x3E => { // F4 (Alt+F4 cierra la ventana enfocada)
+            empujar(F4);
             return;
         },
         0x01 => { // ESC

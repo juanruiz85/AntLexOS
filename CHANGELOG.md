@@ -1,3 +1,29 @@
+## [v1.3.0-dev] - Sin publicar
+
+### Fase 8 (en curso): escritorio clásico estilo Windows 3.11
+
+- **Escritorio tradicional**: fondo sólido verde azulado, ventanas con
+  relieve biselado 3D, barra de título azul marino (gris sin foco),
+  sombra tras la ventana activa, botones ▼ ▲ ✕ e icono del programa
+  (doble clic cierra); doble clic en el título maximiza
+- **Minimizar a icono** sobre el escritorio (sin barra de tareas);
+  doble clic restaura. **Alt+Tab** (recuadro con nombre), **Alt+F4**,
+  arrastre por el título y redimensionado por los bordes
+- **Administrador de Programas** (grupo Principal) + grupo Accesorios
+  con iconos de 32×32 dibujados por código (`iconos.zig`); terminal y
+  chat pasan a ser ventanas más
+- **Menús**: control ▼ (Restaurar/Mover/Tamaño/Minimizar/Maximizar/
+  Cerrar, Mover y Tamaño por teclado), Archivo (Apagar) y Ventana
+  (Cascada, Mosaico, lista de ventanas)
+- **stage2**: el kernel se copia a 1 MiB en modo protegido ANTES de
+  construir las tablas de páginas — arregla un solapamiento del
+  staging con las tablas (0x90000) que corrompía la GDT con kernels
+  > 512 KiB; límites separados: archivo 576 KiB (BIOS) y archivo+bss
+  2 MiB (UEFI)
+- `probar_escritorio.py` reescrito para la nueva UI (40+ pasos, en
+  ajuste final); el resto de la batería pasa: boot BIOS/UEFI, ALFS,
+  IA 24/24, .ALX 20/20, ISO 6/6 y 7/7
+
 ## [v1.2.0] - 2026-11-14
 
 ### Ejecutables .ALX: el sistema abre aplicaciones desde disco (Fase 7)
