@@ -12,7 +12,7 @@
 
 | Fase | Qué | Versión | Estado |
 |------|-----|---------|--------|
-| 7 | Ejecutables `.ALX`: bit de ejecutable, asociaciones por extensión, loader y primeras apps | v1.2.0-dev | ✅ implementada (publicación de v1.2.0 cuando el propietario lo pida) |
+| 7 | Ejecutables `.ALX`: bit de ejecutable, asociaciones por extensión, loader y primeras apps | v1.2.0 | ✅ publicada (tag v1.2.0, release en GitHub) |
 | 8 | Escritorio estilo Windows 3.11: iconos, minimizar a icono, Program Manager, relieve 3D | v1.3.0 | ⏳ planificada |
 | 9 | Red: driver virtio-net, TCP, TLS 1.3, HTTP, comando `descargar` y tienda de apps en GitHub | v1.4.0 | ⏳ planificada |
 

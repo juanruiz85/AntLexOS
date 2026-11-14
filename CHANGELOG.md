@@ -1,4 +1,4 @@
-## [v1.2.0-dev] - Sin publicar
+## [v1.2.0] - 2026-11-14
 
 ### Ejecutables .ALX: el sistema abre aplicaciones desde disco (Fase 7)
 

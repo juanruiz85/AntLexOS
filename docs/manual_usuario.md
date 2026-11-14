@@ -242,7 +242,7 @@ prueba automática que lo verifica en cada versión).
 Consulta `CHANGELOG.md`. Cada versión publica su imagen en GitHub Releases
 con sumas de verificación (`SHA256SUMS`). Novedades principales:
 
-- **v1.2.0-dev**: **ejecutables `.ALX`** — bit de ejecutable en ALFS,
+- **v1.2.0**: **ejecutables `.ALX`** — bit de ejecutable en ALFS,
   asociaciones por extensión, loader con API de apps, y las apps
   **Calculadora** y **Reloj** en `/APPS`.
 - **v1.1.0**: manual de aplicaciones + juego **Adivina** (primera

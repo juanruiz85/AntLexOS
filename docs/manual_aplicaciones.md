@@ -6,7 +6,7 @@ la **Calculadora** y el **Reloj** (`apps/*.zig`), que se compilan, se
 convierten con `tools/mkalx.zig` y se instalan en `/APPS` con el bit de
 ejecutable — todo dentro del propio `zig build`.
 
-> Versión del documento: v1.2.0-dev · Formato y API: `src/kernel/alx_def.zig`
+> Versión del documento: v1.2.0 · Formato y API: `src/kernel/alx_def.zig`
 > (fuente única de verdad, compartida por kernel, apps y mkalx) ·
 > Diseño por fases: `docs/PLAN_FASES_7-9.md` · Captura: `docs/img/calculadora.png`
 
@@ -218,7 +218,7 @@ demás, `.ALX`.
 
 ## 5. Presente y futuro
 
-- **Hecho (v1.2.0-dev)**: formato `.ALX`, bit de ejecutable, asociaciones,
+- **Hecho (v1.2.0)**: formato `.ALX`, bit de ejecutable, asociaciones,
   loader con API de eventos, Calculadora y Reloj.
 - **Fase 8 (v1.3.0)**: escritorio estilo Windows 3.11 — iconos en el
   escritorio para las apps instaladas, minimizar a icono, Program Manager.

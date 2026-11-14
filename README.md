@@ -68,13 +68,13 @@ zig build probar                  # arranca en QEMU sin interfaz y valida serial
 | 5 | v0.5.0 | Escritorio con ventanas, ratón y barra de tareas | ✅ |
 | 6 | v1.0.0 | ISO BIOS+UEFI, portables con QEMU, releases automatizados | ✅ |
 | — | v1.1.0 | Manual de aplicaciones + juego Adivina (primera app de terceros) | ✅ |
-| — | v1.2.0-dev | **Ejecutables `.ALX`**: bit de ejecutable, asociaciones, loader, Calculadora y Reloj (Fase 7) | 🔨 |
+| — | v1.2.0 | **Ejecutables `.ALX`**: bit de ejecutable, asociaciones, loader, Calculadora y Reloj (Fase 7) | ✅ |
 
 Cada versión queda registrada en [CHANGELOG.md](CHANGELOG.md) y sus pruebas en [docs/PRUEBAS.md](docs/PRUEBAS.md).
 
 ## Hacer tus propias aplicaciones
 
-**Desde v1.2.0-dev el sistema abre ejecutables `.ALX` desde disco**: bit de
+**Desde v1.2.0 el sistema abre ejecutables `.ALX` desde disco**: bit de
 ejecutable en ALFS, asociaciones por extensión, loader propio y una API de
 eventos (la Calculadora y el Reloj del build son apps `.ALX`). El manual
 también documenta las apps internas (módulos compilados en el kernel, como

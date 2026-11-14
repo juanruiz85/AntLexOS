@@ -128,9 +128,11 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 
 | P-0083 | 2026-11-14 | 1.1.0 | Batería completa de liberación v1.1.0 | ✅ | Re-ejecutada sobre la build final 1.1.0: host 44/44 · boot BIOS/UEFI · escritorio 33/33 · ISO BIOS 6/6 y UEFI 7/7 · ALFS · AntLex IA 24/24 · auditar.py · fmt (detalles en REV-v1.1.0) |
 
-| P-0084 | 2026-11-14 | 1.2.0-dev | Formato .ALX y herramientas en host | ✅ | 54/54: cabecera/validación/asociaciones (alx_def), conversor mkalx con ELF sintético, lógica de la calculadora (suma, cadena, división por cero, límites) |
-| P-0085 | 2026-11-14 | 1.2.0-dev | Ejecutables .ALX de punta a punta (arnés nuevo) | ✅ | probar_alx.py 20/20: bit EJECUTABLE, carga, ventana, foco, 4 cálculos con teclado ES real, 9/0=E, descarga con ESC, asociaciones, abrir Reloj con captura (1075 px), errores útiles, re-ejecución |
-| P-0086 | 2026-11-14 | 1.2.0-dev | .ALX desde el explorador (escritorio) | ✅ | probar_escritorio.py 41/41: 8 pasos nuevos — subir a raíz, entrar /APPS, abrir CALC.ALX con clic+INTRO, calcular 12+34=46, cerrar y descargar |
+| P-0084 | 2026-11-14 | 1.2.0 | Formato .ALX y herramientas en host | ✅ | 54/54: cabecera/validación/asociaciones (alx_def), conversor mkalx con ELF sintético, lógica de la calculadora (suma, cadena, división por cero, límites) |
+| P-0085 | 2026-11-14 | 1.2.0 | Ejecutables .ALX de punta a punta (arnés nuevo) | ✅ | probar_alx.py 20/20: bit EJECUTABLE, carga, ventana, foco, 4 cálculos con teclado ES real, 9/0=E, descarga con ESC, asociaciones, abrir Reloj con captura (1075 px), errores útiles, re-ejecución |
+| P-0086 | 2026-11-14 | 1.2.0 | .ALX desde el explorador (escritorio) | ✅ | probar_escritorio.py 41/41: 8 pasos nuevos — subir a raíz, entrar /APPS, abrir CALC.ALX con clic+INTRO, calcular 12+34=46, cerrar y descargar |
+
+| P-0087 | 2026-11-14 | 1.2.0 | Release v1.2.0: batería completa re-ejecutada + arnés .ALX en CI | ✅ | 54/54 host · probar_alx 20/20 · escritorio 41/41 · boot BIOS/UEFI · ISO 6/6 y 7/7 · ALFS · AntLex 24/24 · auditar · fmt — probar_alx añadido a ci.yml y release.yml |
 
 ## Notas
 

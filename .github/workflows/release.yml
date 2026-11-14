@@ -34,6 +34,7 @@ jobs:
           python3 tools/probar_boot.py zig-out/antlexos.img build/pruebas_uefi --uefi --tiempo 150
           python3 tools/probar_alfs.py zig-out/antlexos.img build/pruebas_alfs --tiempo 120
           python3 tools/probar_antlex.py zig-out/antlexos.img build/pruebas_antlex --tiempo 240
+          python3 tools/probar_alx.py zig-out/antlexos.img build/pruebas_alx --tiempo 120
           python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
           python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_bios --tiempo 120
           python3 tools/probar_iso.py zig-out/antlexos.iso build/iso_uefi --tiempo 240 --uefi

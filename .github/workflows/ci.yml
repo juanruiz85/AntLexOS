@@ -62,6 +62,11 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_antlex.py zig-out/antlexos.img build/pruebas_antlex --tiempo 240
 
+      - name: Ejecutables .ALX de punta a punta (Fase 7)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_alx.py zig-out/antlexos.img build/pruebas_alx --tiempo 120
+
       - name: Arnés del escritorio (Fase 5, 28 pasos QMP+HMP)
         env:
           TC: /noexiste
