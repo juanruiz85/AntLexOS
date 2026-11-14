@@ -178,12 +178,22 @@ def main():
             return sys.exit(1)
         log("prueba.txt creado")
 
-        # 3) sincronizar al disco
-        teclear(qmp, "sincronizar")
-        intro(qmp)
-        _, pos_sync = esperar(serial_path, "ALFS SINCRONIZADO", 30, pos)
+        # 3) sincronizar al disco (con reintentos: en runners cargados QMP
+        # puede perder la primera ráfaga de teclas)
+        pos_sync = -1
+        for intento in range(1, 4):
+            teclear(qmp, "sincronizar")
+            intro(qmp)
+            _, pos_sync = esperar(serial_path, "ALFS SINCRONIZADO", 30, pos)
+            if pos_sync >= 0:
+                break
+            log(f"aviso: sincronizar no respondió (intento {intento}/3), reintentando...")
+            time.sleep(2)
         if pos_sync < 0:
             log("ERROR: la sincronización no completó")
+            log("--- serial (últimas 25 líneas) ---")
+            for l in leer_serial(serial_path).splitlines()[-25:]:
+                log("  " + l)
             return sys.exit(1)
         log("volumen sincronizado al disco")
 
