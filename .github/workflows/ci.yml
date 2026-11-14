@@ -74,6 +74,11 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
 
+      - name: Red virtio-net (Fase 9a: ARP, ping y ACPI con slirp)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_red.py zig-out/antlexos.img build/pruebas_red --tiempo 240
+
       - name: ISO en BIOS (El Torito, Fase 6)
         env:
           TC: /noexiste
@@ -105,6 +110,7 @@ jobs:
             build/pruebas_antlex/serial_antlex.log
             build/pruebas_escritorio/escritorio.png
             build/pruebas_escritorio/serial_final.log
+            build/pruebas_red/serial_final.log
             build/iso_bios/escritorio-bios-cd.png
             build/iso_uefi/escritorio-uefi-cd.png
           if-no-files-found: error

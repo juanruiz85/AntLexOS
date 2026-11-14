@@ -20,6 +20,7 @@ const version = @import("version.zig");
 const x86 = @import("x86.zig");
 const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
+const red = @import("red.zig");
 const interprete = @import("interprete.zig");
 const antlex = @import("antlex.zig");
 const gui = @import("gui.zig");
@@ -142,6 +143,11 @@ export fn kmain(boot_ptr: usize) noreturn {
         serial.puts(@errorName(err_alfs));
         serial.puts(")\n");
     }
+
+    // ---------------- red virtio-net (Fase 9) ----------------
+    // opcional: sin dispositivo el sistema arranca igual (sin red)
+    serial.puts("init: red\n");
+    red.init();
 
     // batería de autopruebas (serial + resumen); el splash sigue en pantalla
     autoprueba.ejecutar(bi);

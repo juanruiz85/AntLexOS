@@ -215,7 +215,9 @@ para abrir con doble clic — el "wget" propio del sistema.
 
 | Hito | Qué | Commit | Estado |
 |---|---|---|---|
-| — | Por empezar (arrancar tras cerrar la Fase 8) | — | ⏳ |
+| 9a | Driver virtio-net 1.0 (PCI caps modernas, anillos RX/TX por polling) + ARP + IPv4 + ICMP + `red`/`ping` + autoprueba 15 + arnés probar_red | (este commit) | ✅ probar_red 12/12 (ARP de la puerta, ping 3/3 ecos, ACPI) · 61/61 host · 3 bugs de driver cazados con filter-dump (P-0094) |
+| 9b | TCP cliente + TLS 1.3 (CA pinning) + HTTP/1.1 + `tienda`/`descargar` + repo AntLexApps + e2e contra GitHub | — | ⏳ |
+| 9c | Docs (manuales, PRUEBAS, README, REV-v1.4.0-dev) y batería final | — | ⏳ |
 
 ---
 

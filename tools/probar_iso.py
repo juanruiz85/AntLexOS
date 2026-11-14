@@ -112,9 +112,10 @@ def main():
                  all(c in serial for c in ("A", "B")) and "ESCRITORIO LISTO" in serial)
         paso("ratón PS/2 activo", "raton PS/2 activo (IRQ12)" in serial)
 
-        # 3) autopruebas: en CD puro 11/14 (sin disco ATA), banner con errores
-        paso("autopruebas 11/14 (sin disco ATA)",
-             "AUTOPRUEBAS 11/14 correctas" in serial)
+        # 3) autopruebas: en CD puro 12/15 (sin disco ATA fallan 3 de ALFS;
+        #    red_paquetes es lógica pura y pasa sin dispositivo), banner con errores
+        paso("autopruebas 12/15 (sin disco ATA)",
+             "AUTOPRUEBAS 12/15 correctas" in serial)
         paso("banner con errores esperado (sin disco)",
              "ANTLEX BOOT CON ERRORES" in serial)
 

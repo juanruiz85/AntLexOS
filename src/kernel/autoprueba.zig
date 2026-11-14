@@ -16,6 +16,7 @@ const x86 = @import("x86.zig");
 const version = @import("version.zig");
 const ata = @import("ata.zig");
 const alfs = @import("alfs.zig");
+const red = @import("red.zig");
 const fmt = @import("alfs_formato.zig");
 const antlex = @import("antlex.zig");
 const raton = @import("raton.zig");
@@ -180,6 +181,10 @@ pub fn ejecutar(bi: *const boot_info.BootInfo) void {
         ok14 = ok14 and raton.acotar(-25, 0, 1023) == 0 and raton.acotar(4096, 0, 1023) == 1023;
         comprobar("raton_paquetes", ok14, "decodificacion y acotado PS/2");
     }
+
+    // 15) red (Fase 9): checksums y paquetes ARP/IPv4/ICMP bien formados.
+    // Lógica pura: el propio dispositivo se prueba con el arnés probar_red.py
+    comprobar("red_paquetes", red.autopruebaPaquetes(), "checksum, ARP e ICMP bien formados");
 
     // resumen
     var nbuf: [48]u8 = undefined;

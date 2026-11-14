@@ -141,6 +141,10 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0092 | 2026-11-14 | 1.3.0-dev | Flake del CI del tag v1.2.0: «sincronizar» | ✅ | Causa raíz: el push del tag disparó CI y Release a la vez y dos QEMU con TCG compitieron por la CPU del runner; la escritura ATA de `sincronizar` superó los 25 s del arnés (el archivo sí se escribió: el paso siguiente pasó). Corregido: margen de 60 s en probar_antlex.py y ci.yml sin trigger de tags |
 | P-0093 | 2026-11-14 | 1.3.0 | **Release v1.3.0: batería completa re-ejecutada** | ✅ | Sobre la build final 1.3.0: host 54/54 · entrenar-verificar · boot BIOS/UEFI · ALFS · AntLex IA 24/24 · .ALX 20/20 · escritorio 68/68 · ISO BIOS 6/6 y UEFI 7/7 · auditar.py · fmt (detalles en REV-v1.3.0-dev) |
 
+| P-0094 | 2026-11-14 | 1.4.0-dev | Driver virtio-net 1.0: 1ª pasada | ❌ | Tres fallos cazados con `filter-dump` (volcado pcap) + trazas: (1) el walker de capabilities paraba en la MSI-X (id 0x11) en vez de seguir la lista; (2) QEMU moderno consume cabecera virtio de **12 B** (con num_buffers) aunque no se negocie MRG_RXBUF — la trama salía desplazada 2 bytes; (3) la longitud de trama con mínimo de 60 B restaba la cabecera Ethernet dos veces — el IPv4 salía truncado y slirp lo descartaba en silencio |
+| P-0095 | 2026-11-14 | 1.4.0-dev | **Driver virtio-net completo (corregido)** | ✅ | «red: virtio-net 1.0 listo (MAC 52:54:00:12:34:56)»: PCI 1af4:1041, caps modernas (common/notify/device cfg), VERSION_1+MAC, colas 256 por polling; ARP 10.0.2.2 → 52:55:0A:00:02:02 resuelto, ping 3/3 ecos, respuestas a ecos ajenos y a peticiones ARP propias; autoprueba 15 (`red_paquetes`) y 7 pruebas host nuevas (61/61 en total) |
+| P-0096 | 2026-11-14 | 1.4.0-dev | Arnés `probar_red.py` de punta a punta | ✅ | 12/12 con `-netdev user` + `virtio-net-pci,disable-legacy=on`: arranque, init, autoprueba 15/15, estado `red` (MAC/IP/puerta), ARP, ping 3/3 ecos, caché ARP, contadores y apagado ACPI; añadido a ci.yml y release.yml. El resto de la batería arranca SIN red y debe ver «red: sin dispositivo virtio-net» (verificado en la batería del hito) |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del
@@ -158,3 +162,9 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
   orden desde el splash, y cliquea los menús del Program Manager en su
   posición ACTUAL (cascada y mosaico lo mueven). El cierre final de
   ventanas usa Alt+Tab+Alt+F4: el teclado es inmune a las posiciones.
+- Red (Fase 9, P-0094): el diagnóstico de driver que mejor funciona es
+  `-object filter-dump,id=f,netdev=X,file=d.pcap` en QEMU + inspección
+  del pcap; el volcado muestra la trama EXACTA que ve slirp. Hallazgo
+  clave: QEMU moderno consume cabecera virtio-net de 12 B (con
+  num_buffers) incluso sin negociar MRG_RXBUF; con 10 B la trama sale
+  desplazada 2 bytes y slirp la descarta en silencio.

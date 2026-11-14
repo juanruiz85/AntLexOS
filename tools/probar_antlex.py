@@ -4,7 +4,7 @@
 Arranca la imagen en QEMU y conversa DE VERDAD con AntLex por teclado QMP:
 intenciones del sistema, memoria aprendida (aprende → pregunta → persistir
 en ALFS → olvida), explicabilidad (por qué) y rechazo educado de temas
-ajenos. Termina con `pruebas` (14/14) y apagado ACPI real.
+ajenos. Termina con `pruebas` (15/15) y apagado ACPI real.
 
 Uso:  probar_antlex.py <imagen.img> <dir_salida> [--tiempo SEG]
 """
@@ -285,9 +285,9 @@ def main():
         teclear(qmp, "antlex memoria"); intro(qmp)
         paso("memoria: vacía", "memoria vac", ref, serial_path)
 
-        # 18) autopruebas bajo demanda (14/14 con la de AntLex)
+        # 18) autopruebas bajo demanda (15/15: la 15 es red_paquetes, pura)
         teclear(qmp, "pruebas"); intro(qmp)
-        paso("autopruebas 14/14", "AUTOPRUEBAS 14/14 correctas", ref, serial_path, limite=40.0)
+        paso("autopruebas 15/15", "AUTOPRUEBAS 15/15 correctas", ref, serial_path, limite=40.0)
 
         # 19) apagado real por ACPI
         teclear(qmp, "apagar"); intro(qmp)

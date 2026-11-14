@@ -21,6 +21,7 @@ const pit = @import("pit.zig");
 const reloj = @import("reloj.zig");
 const alx = @import("alx.zig");
 const alx_def = @import("alx_def.zig");
+const red = @import("red.zig");
 const gui = @import("gui.zig"); // abrirApp/editorAbrir (Fase 7)
 const autoprueba = @import("autoprueba.zig");
 const antlex = @import("antlex.zig");
@@ -1169,6 +1170,8 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "abrir", .alias = "open", .ayuda = "abre un archivo segun su extension", .uso = "abrir <archivo>", .ejecutar = cmdAbrir },
     .{ .nombre = "asociar", .alias = "assoc", .ayuda = "ver o cambiar asociaciones", .uso = "asociar [ext editor|ejecutar|mostrar]", .ejecutar = cmdAsociar },
     .{ .nombre = "atributos", .alias = "attrib", .ayuda = "tipo, tamano y bit de ejecutable", .uso = "atributos <archivo>", .ejecutar = cmdAtributos },
+    .{ .nombre = "red", .alias = "net", .ayuda = "estado de la red (virtio-net)", .uso = "red", .ejecutar = cmdRed },
+    .{ .nombre = "ping", .alias = "", .ayuda = "3 ecos ICMP a una IP", .uso = "ping <ip>", .ejecutar = cmdPing },
     .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
     .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };
@@ -1341,6 +1344,87 @@ fn cmdAtributos(args: []const u8) void {
         if ((e.flags & fmt.FLAG_EJECUTABLE) != 0) {
             salida(", EJECUTABLE");
         }
+    }
+    salida("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Fase 9 — red: virtio-net, ARP e ICMP
+// ---------------------------------------------------------------------------
+
+fn cmdRed(args: []const u8) void {
+    _ = args;
+    if (!red.activaRed()) {
+        salida("red: sin dispositivo virtio-net\n");
+        return;
+    }
+    var b: [24]u8 = undefined;
+    salida("virtio-net 1.0 — MAC ");
+    salida(red.formatearMac(red.macNuestra(), &b));
+    salida("\nIP ");
+    salida(red.formatearIp(red.IP_NUESTRA, &b));
+    salida(" · puerta ");
+    salida(red.formatearIp(red.IP_PUERTA, &b));
+    salida("\n");
+    if (red.cacheArp()) |c| {
+        salida("ARP ");
+        salida(red.formatearIp(c.ip, &b));
+        salida(" -> ");
+        salida(red.formatearMac(c.mac, &b));
+        salida("\n");
+    }
+    const cont = red.contadores();
+    salida("paquetes: ");
+    entero(cont.tx);
+    salida(" enviados · ");
+    entero(cont.rx);
+    salida(" recibidos\n");
+}
+
+fn cmdPing(args: []const u8) void {
+    if (args.len == 0) {
+        fallo("uso: ping <ip> (ejemplo: ping 10.0.2.2)");
+        return;
+    }
+    if (!red.activaRed()) {
+        fallo("red no disponible");
+        return;
+    }
+    const ip = red.parsearIp(args) orelse {
+        fallo("direccion no valida (ejemplo: ping 10.0.2.2)");
+        return;
+    };
+    const r = red.ping(ip);
+    if (r.fallo) |motivo| {
+        salida("ping ");
+        salida(args);
+        salida(": ");
+        fallo(motivo);
+        return;
+    }
+    var seq: usize = 0;
+    while (seq < r.enviados) : (seq += 1) {
+        salida("eco ");
+        entero(seq + 1);
+        salida(" de ");
+        salida(args);
+        salida(": ");
+        if (r.ms[seq] > 0) {
+            entero(r.ms[seq]);
+            salida(" ms\n");
+        } else salida("sin respuesta\n");
+    }
+    salida("ping ");
+    salida(args);
+    salida(": ");
+    entero(r.respondidos);
+    salida("/");
+    entero(r.enviados);
+    salida(" ecos");
+    if (r.respondidos > 0) {
+        salida(", media ");
+        entero(r.media_ms);
+        salida(" ms");
     }
     salida("\n");
 }

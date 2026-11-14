@@ -1,3 +1,29 @@
+## [v1.4.0-dev] - Sin publicar
+
+### Fase 9 (en curso): red, `descargar` y tienda de aplicaciones
+
+- **Driver virtio-net 1.0 propio** (`src/kernel/red.zig`): escaneo PCI,
+  capabilities modernas (common/notify/device cfg por MMIO), negociación
+  VERSION_1+MAC, anillos divididos RX/TX con 32 búferes de recepción y 16
+  ranuras de envío, todo por **polling** (sin IRQ, documentado) y con
+  búferes DMA-seguros por el mapa identidad de 4 GiB. Sin patentes:
+  virtio es especificación OASIS (BSD).
+- **Pila ARP + IPv4 + ICMP**: checksums de Internet con vectores
+  verificados, resolución ARP con caché, respuestas a ecos ajenos y
+  contestación de peticiones ARP como buena vecindad
+- **Comandos**: `red` (MAC, IP, puerta, caché ARP, contadores) y
+  `ping <ip>` (ARP + 3 ecos ICMP con tiempos por PIT)
+- **IP estática** 10.0.2.15/24 con puerta 10.0.2.2 (red de usuario de
+  QEMU); sin dispositivo el sistema arranca igual («red: sin dispositivo»)
+- **Pruebas**: autoprueba 15 (`red_paquetes`, lógica pura) · 61/61 host
+  (7 nuevas: checksums, ARP, IPv4, eco/respuesta, parseo y formatos) ·
+  arnés `probar_red.py` 12/12 (init, ARP, ping 3/3, caché, contadores,
+  ACPI) con `-netdev user` + `virtio-net-pci` moderno (`disable-legacy=on`)
+- **Depuración con `filter-dump`** registrada en PRUEBAS: cabecera virtio
+  de 12 B en QEMU moderno (no 10 sin MRG_RXBUF), truncado de trama por
+  doble resta del mínimo Ethernet y el walker de capabilities parando en
+  la MSI-X — los tres corregidos
+
 ## [v1.3.0] - 2026-11-14
 
 ### Escritorio clásico estilo Windows 3.11 (Fase 8)

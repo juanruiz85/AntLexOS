@@ -19,6 +19,8 @@ const apps = @import("kernel/apps.zig");
 // Fase 7: definiciones del formato .ALX (puro; las apps y mkalx tienen
 // sus propios pasos de prueba en build.zig)
 const alx_def = @import("kernel/alx_def.zig");
+// Fase 9: red — la lógica pura de paquetes (checksum, ARP, IPv4, ICMP)
+const red = @import("kernel/red.zig");
 
 test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
@@ -32,6 +34,10 @@ test "reloj: ejecuta las pruebas del RTC (Zeller y formatos)" {
 
 test "fase 7: definiciones del formato .ALX (cabecera, asociaciones)" {
     _ = alx_def;
+}
+
+test "fase 9: red (checksums, ARP, IPv4, ICMP, formatos)" {
+    _ = red;
 }
 
 // ---------------------------------------------------------------------------
