@@ -124,6 +124,8 @@ la evolución). Resultados: ✅ PASA · ❌ FALLA · ⚠️ PASA CON RESERVA.
 | P-0080 | 2026-11-13 | 1.1.0-dev | Juego Adivina en el escritorio (arnés) | ✅ | 33/33: abrir por clic, foco, ronda nueva, intento por teclado real, cierre con ESC |
 | P-0081 | 2026-11-13 | 1.1.0-dev | Auditoría REV-v1.1.0-dev + documentación | ✅ | auditar.py PASA; manual de aplicaciones coherente con el código (verificado cada extracto) |
 
+| P-0082 | 2026-11-14 | 1.1.0 | Documentación de la Fase 4 publicada | ✅ | docs/informe-fase-4-v0.4.0.md: el informe de la IA embebida pasa del registro local al repositorio |
+
 ## Notas
 
 - Las filas P-0001..P-0008 documentan el proceso de depuración del

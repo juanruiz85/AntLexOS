@@ -81,6 +81,7 @@ una app completa paso a paso — el juego Adivina del repositorio es el ejemplo.
 - [Manual técnico](docs/manual_tecnico.md) — arquitectura, layout de disco, protocolo boot_info, ISO y portables
 - [Manual de aplicaciones](docs/manual_aplicaciones.md) — cómo crear apps y juegos para AntLex OS
 - [Registro de pruebas](docs/PRUEBAS.md) — cada prueba ligada a su versión
+- [Informe de la Fase 4](docs/informe-fase-4-v0.4.0.md) — la IA embebida AntLex, contada en detalle
 - [Auditorías de seguridad](docs/revision_seguridad.md)
 - [Resumen para continuar el proyecto](docs/RESUMEN_PROYECTO.md) — para otras IA o personas que retomen el trabajo
 - [Hoja de ruta](TODO.md)
