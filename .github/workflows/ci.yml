@@ -74,7 +74,7 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
 
-      - name: Red virtio-net (Fase 9a: ARP, ping y ACPI con slirp)
+      - name: Red virtio-net (Fase 9a — ARP, ping y ACPI con slirp)
         env:
           TC: /noexiste
         run: python3 tools/probar_red.py zig-out/antlexos.img build/pruebas_red --tiempo 240
