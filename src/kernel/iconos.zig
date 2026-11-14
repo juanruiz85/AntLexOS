@@ -106,17 +106,17 @@ fn iconoGrupo(x: u32, y: u32) void {
 /// Explorador: carpeta amarilla con pestaña.
 fn iconoExplorador(x: u32, y: u32) void {
     rect(x + 2, y + 8, 13, 4, AMARILLO); // pestaña
-        rect(x + 2, y + 8, 13, 1, AMARILLO_OSC);
-        rect(x + 2, y + 11, 3, 2, AMARILLO);
-        rect(x + 1, y + 12, 30, 16, AMARILLO); // cuerpo
-        rect(x + 1, y + 12, 30, 2, pantalla.rgb(0xFF, 0xF0, 0x60)); // brillo sup.
-        rect(x + 1, y + 27, 30, 1, AMARILLO_OSC);
+    rect(x + 2, y + 8, 13, 1, AMARILLO_OSC);
+    rect(x + 2, y + 11, 3, 2, AMARILLO);
+    rect(x + 1, y + 12, 30, 16, AMARILLO); // cuerpo
+    rect(x + 1, y + 12, 30, 2, pantalla.rgb(0xFF, 0xF0, 0x60)); // brillo sup.
+    rect(x + 1, y + 27, 30, 1, AMARILLO_OSC);
     rect(x + 1, y + 12, 1, 16, AMARILLO_OSC);
     rect(x + 30, y + 12, 1, 16, AMARILLO_OSC);
-        rect(x + 5, y + 17, 22, 2, AMARILLO_OSC); // líneas de contenido
+    rect(x + 5, y + 17, 22, 2, AMARILLO_OSC); // líneas de contenido
     rect(x + 5, y + 21, 22, 2, AMARILLO_OSC);
     rect(x + 5, y + 25, 14, 2, AMARILLO_OSC);
-    }
+}
 
 /// Editor: página con esquina doblada y líneas de texto.
 fn iconoEditor(x: u32, y: u32) void {

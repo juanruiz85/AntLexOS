@@ -85,7 +85,7 @@ pub const TipoApp = enum(u4) {
 const N_VENTANAS: u4 = 9;
 
 const NOMBRE_APP = [N_VENTANAS][]const u8{
-    "Explorador", "Editor", "Acerca de", "Adivina", "Aplicacion",
+    "Explorador", "Editor", "Acerca de", "Adivina",    "Aplicacion",
     "Terminal",   "Chat",   "Programas", "Accesorios",
 };
 
@@ -837,7 +837,6 @@ pub fn chatEscribir(txt: []const u8) void {
     chat.putc('\n');
     dibujarTodo();
 }
-
 
 // ---------------------------------------------------------------------------
 // gestión de ventanas

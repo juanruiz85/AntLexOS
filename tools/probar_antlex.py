@@ -258,9 +258,12 @@ def main():
         teclear(qmp, "antlex por que"); intro(qmp)
         paso("por qué (aprendida)", "memoria aprendida", ref, serial_path)
 
-        # 14) persistir en ALFS y verificar el archivo
+        # 14) persistir en ALFS y verificar el archivo.
+        #     Margen amplio (60 s): la escritura ATA emulada por TCG puede
+        #     tardar cuando el runner va cargado (falló así en el CI del tag
+        #     v1.2.0, lanzado en paralelo con el workflow de Release)
         teclear(qmp, "sincronizar"); intro(qmp)
-        paso("sincronizar", "SINCRONIZADO", ref, serial_path)
+        paso("sincronizar", "SINCRONIZADO", ref, serial_path, limite=60.0)
         teclear(qmp, "mostrar memoria/antlex.txt"); intro(qmp)
         paso("archivo de memoria en ALFS", "color favorito = azul", ref, serial_path)
 

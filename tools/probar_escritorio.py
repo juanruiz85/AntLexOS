@@ -1,13 +1,38 @@
 #!/usr/bin/env python3
 """AntLex OS — arnés del escritorio clásico (Fase 8).
 
-Arranca la imagen en QEMU y ejercita el escritorio estilo clásico:
-Administrador de Programas con iconos, ventanas con cromo biselado 3D,
-minimizar a icono sobre el escritorio, maximizar/restaurar, menú de
-control (▼), menús Archivo/Ventana con cascada y mosaico, Alt+Tab,
-Alt+F4, arrastre de ventana, navegación del explorador, edición y
-guardado en ALFS, chat de AntLex, app .ALX desde el explorador y
-apagado ACPI desde Archivo.
+Arranca la imagen en QEMU y ejercita el escritorio estilo clásico de punta
+a punta (60+ pasos): Administrador de Programas con iconos, ventanas con
+cromo biselado 3D, minimizar a icono sobre el escritorio y restaurar,
+maximizar/restaurar (doble clic en título y botón ▲), menú de control (▼),
+menús Archivo/Ventana con cascada y mosaico, Alt+Tab, Alt+F4, arrastre de
+ventana por el título, navegación del explorador, edición y guardado en
+ALFS, chat de AntLex, app .ALX desde el explorador y apagado ACPI desde
+Archivo.
+
+Cómo está construido (lecciones de la primera vuelta, ver REV-v1.3.0):
+- **Marcadores EN ORDEN**: cada `paso()` solo avanza cuando halla su
+  marcador en el serial después del anterior; los marcadores tempranos
+  (splash, ventanas iniciales) salen ANTES de «ESCRITORIO LISTO», así que
+  el ancla de referencia empieza en 0 y el arranque se espera aparte.
+- **El clic va primero a la ventana enfocada** (gui.zig procesarClic) y
+  luego en orden de índice descendente (Accesorios > Programas > Chat >
+  Terminal > app > Editor > Explorador). El arnés por tanto garantiza el
+  foco antes de clicar botones: p. ej. el botón ▼ del Editor se cliquea
+  tras enfocar su área de cliente en (190,300), único punto del Editor
+  que no cae bajo Explorador/Chat/Programas.
+- **Clic sencillo en una barra de título = arrastre nulo** y el kernel
+  traza «ventana movida»; el arnés evita clicar títulos salvo en el
+  doble clic de maximizar (la traza espuria queda antes del marcador
+  ordenado) y en el arrastre real.
+- **Alt+Tab es determinista**: cicla foco por orden del enum TipoApp
+  (Explorador, Editor, Acerca de, Adivina, app, Terminal, Chat,
+  Programas, Accesorios) saltando las cerradas. Al final se cierran las
+  apps con Alt+Tab+Alt+F4 hasta que solo queda Programas.
+- **Cascada y mosaico mueven TAMBIÉN al Program Manager** (cascada:
+  480×320 desfasadas 24 px; mosaico: rejilla ceil(sqrt(n))). Los menús se
+  cliquean en la posición ACTUAL del PM: (10,8) al inicio, (96,96) tras
+  cascada y (512,384) tras mosaico de 4 ventanas.
 
 El ratón se mueve por HMP (mouse_move/mouse_button): input-send-event de
 QMP NO llega al PS/2 en QEMU 11 — ver docs/PRUEBAS.md.
@@ -15,7 +40,6 @@ QMP NO llega al PS/2 en QEMU 11 — ver docs/PRUEBAS.md.
 Uso:  probar_escritorio.py <imagen.img> <dir_salida> [--tiempo SEG]
 """
 import argparse
-import json
 import os
 import shutil
 import subprocess
@@ -41,8 +65,11 @@ TERM = (250, 120, 560, 420)   # Terminal (enfocado al arrancar)
 CHATV = (210, 160, 500, 340)  # Chat de AntLex
 EXPL = (300, 60, 360, 330)    # Explorador
 EDIT = (170, 100, 480, 330)   # Editor
-ADIV = (340, 190, 340, 230)   # Adivina
-APPV = (300, 140, 320, 240)   # app externa .ALX
+
+# posiciones del PM tras organizar (cascada: 24+i*24 con i=3 de 4 ventanas;
+# mosaico de 4: rejilla 2x2, PM en la celda inferior derecha)
+PM_CASCADA = (96, 96, 480, 320)
+PM_MOSAICO = (512, 384, 512, 384)
 
 ICONO_PM = [  # iconos del grupo Principal (celdas de 100x76, 4 columnas)
     "Explorador", "Editor", "Terminal", "Chat", "Acerca de", "Accesorios",
@@ -64,24 +91,25 @@ def btn_cerrar(v):
     return (v[0] + v[2] - 10, v[1] + 8)
 
 
-def btn_max(v):
-    return (v[0] + v[2] - 28, v[1] + 8)
-
-
-def btn_ctrl(v):
-    return (v[0] + v[2] - 46, v[1] + 8)
-
-
 def titulo_v(v):
     return (v[0] + 120, v[1] + 8)
 
 
 def menu_archivo(v):
+    """Entrada [Archivo] de la barra de menú de un grupo (lx 6..74)."""
     return (v[0] + 30, v[1] + 24)
 
 
 def menu_ventana(v):
+    """Entrada [Ventana] de la barra de menú de un grupo (lx 78..146)."""
     return (v[0] + 108, v[1] + 24)
+
+
+def item_menu(v, fila, col_ventana=False):
+    """Centro del ítem `fila` de un menú desplegado bajo la barra de un
+    grupo: menuAbrir(v.x+6 o +78, v.y+32), ítems de 18 px desde +3."""
+    mx = v[0] + (78 if col_ventana else 6)
+    return (mx + 40, v[1] + 32 + 3 + fila * 18 + 9)
 
 
 # filas del explorador (y_lista = y + 16 + 24)
@@ -90,9 +118,13 @@ EXPL_FILA = lambda i: (EXPL[0] + 60, EXPL[1] + 40 + i * 16 + 8)  # noqa: E731
 # iconos del escritorio (ventanas minimizadas): franja inferior
 ICONO_ESCR = lambda k: (12 + k * 92 + 16, ALTO - 72 + 16)  # noqa: E731
 
+# área del Editor solo cubierta por el Editor (fuera de Explorador 300..660,
+# Chat 210..710 y PM 10..434): franja x 170..210, y 218..430
+CLIENTE_EDITOR = (EDIT[0] + 20, 300)
+
 
 def log(msg):
-    print(f"[probar_escritorio] {msg}")
+    print(f"[probar_escritorio] {msg}", flush=True)
 
 
 def leer_serial(ruta):
@@ -127,6 +159,25 @@ def paso(nombre, marca, ref, serial_path, limite=25.0):
     PASOS_MAL += 1
     log(f"FALLA: {nombre} (no se halló «{marca}»)")
     return False
+
+
+def paso_alttab(qmp, ref, serial_path):
+    """Pulsa Alt+Tab y devuelve el nombre de la ventana enfocada."""
+    global PASOS_OK, PASOS_MAL
+    qmp.combo(["alt", "tab"])
+    time.sleep(0.4)
+    _, pos = esperar(serial_path, "gui: alt-tab -> ", 10.0, ref[0])
+    if pos < 0:
+        PASOS_MAL += 1
+        log("FALLA: alt-tab sin respuesta")
+        return None
+    ref[0] = pos + len("gui: alt-tab -> ")
+    contenido = leer_serial(serial_path)
+    fin = contenido.find("\n", ref[0])
+    nombre = contenido[ref[0]:fin if fin >= 0 else ref[0] + 24].strip()
+    PASOS_OK += 1
+    log(f"ok: alt-tab -> {nombre}")
+    return nombre
 
 
 class Raton:
@@ -211,14 +262,16 @@ def main():
         proc = subprocess.Popen(cmd, stdout=fq, stderr=subprocess.STDOUT)
 
     try:
-        # 1) arranque: splash + escritorio clásico con Programas y Terminal
+        # 1) arranque: splash + escritorio clásico con Programas y Terminal.
+        #    Los marcadores tempranos salen ANTES de «ESCRITORIO LISTO»:
+        #    el ancla de orden empieza en 0, no en el final del arranque.
         _, pos = esperar(serial_path, "ESCRITORIO LISTO", args.tiempo)
         if pos < 0:
             log("FALLA: el escritorio no arrancó")
             return 1
-        ref = [pos]
         PASOS_OK += 1
         log("ok: arranque hasta el escritorio")
+        ref = [0]
         paso("splash visible", "SPLASH VISIBLE", ref, serial_path)
         paso("Programas abierto al arrancar", "gui: ventana abierta Programas", ref, serial_path)
         paso("Terminal abierto al arrancar", "gui: ventana abierta Terminal", ref, serial_path)
@@ -277,8 +330,9 @@ def main():
         time.sleep(0.6)
         paso("editor guarda", "gui: editor guarda DATOS.TXT", ref, serial_path)
 
-        # 7) verificar desde el TERMINAL (clic en su interior para el foco)
-        r.clic(TERM[0] + 200, TERM[1] + 200)
+        # 7) verificar desde el TERMINAL: clic en su franja derecha (780,500),
+        #    la única zona del Terminal que no queda bajo Editor ni Explorador
+        r.clic(TERM[0] + 530, TERM[1] + 380)
         paso("foco terminal", "gui: foco ventana Terminal", ref, serial_path)
         teclear_con_igual(qmp, "mostrar ejemplos/datos.txt")
         qmp.tecla("ret")
@@ -315,6 +369,15 @@ def main():
         time.sleep(0.4)
         paso("Adivina cerrada con ESC", "gui: ventana cerrada Adivina", ref, serial_path)
 
+        # 9b) cerrar el grupo Accesorios con su ✕: el clic va primero a la
+        #     ventana enfocada (el Explorador tras cerrar Adivina), así que
+        #     primero se enfoca Accesorios por su título en (200,60) — fuera
+        #     del Explorador (x<300) — y luego se pulsa su ✕
+        r.clic(ACC[0] + 140, ACC[1] + 8)
+        paso("foco Accesorios para cerrar", "gui: foco ventana Accesorios", ref, serial_path)
+        r.clic(*btn_cerrar(ACC))
+        paso("grupo Accesorios cerrado con ✕", "gui: ventana cerrada Accesorios", ref, serial_path)
+
         # 10) app .ALX desde el explorador: raíz → APPS → CALC.ALX
         r.clic(*EXPL_FILA(0))               # re-enfocar el explorador
         qmp.tecla("backspace")              # subir a la raíz
@@ -337,12 +400,15 @@ def main():
         paso("app descargada", "alx: descargada CALC", ref, serial_path)
         paso("Calculadora cerrada", "gui: ventana cerrada Calculadora", ref, serial_path)
 
-        # 11) minimizar el Editor a icono (menú ▼) y restaurar con doble clic
-        r.clic(*btn_ctrl(EDIT))
-        time.sleep(0.3)
+        # 11) minimizar el Editor a icono (menú ▼) y restaurar con doble clic.
+        #     El foco tras cerrar la Calculadora cae en el Explorador, que
+        #     cubre el título del Editor: se enfoca el Editor clicando su
+        #     área de cliente en (190,300), punto solo del Editor.
+        r.clic(*CLIENTE_EDITOR)
+        paso("foco Editor (área de cliente)", "gui: foco ventana Editor", ref, serial_path)
+        r.clic(EDIT[0] + EDIT[2] - 46, EDIT[1] + 8)          # botón ▼
         paso("menú de control abierto", "gui: menu abierto", ref, serial_path)
-        # ítem 3 = Minimizar (el menú cae bajo ▼: x = EDIT+AN-60, y = EDIT+16)
-        r.clic(EDIT[0] + EDIT[2] - 40, EDIT[1] + 16 + 3 + 3 * 18 + 9)
+        r.clic(EDIT[0] + EDIT[2] - 40, EDIT[1] + 16 + 3 + 3 * 18 + 9)  # ítem 3
         paso("menú accion Minimizar", "gui: menu accion Minimizar", ref, serial_path)
         paso("ventana minimizada Editor", "gui: ventana minimizada Editor", ref, serial_path)
         r.doble_clic(*ICONO_ESCR(0))
@@ -355,42 +421,31 @@ def main():
         r.clic(ANCHO - 28, 8)               # ▲ de la ventana maximizada
         paso("botón ▲ restaura", "gui: ventana restaurada Editor", ref, serial_path)
 
-        # 13) arrastrar el editor por el título
+        # 13) arrastrar el editor por el título (queda en 230,152)
         r.arrastrar(EDIT[0] + 200, EDIT[1] + 8, EDIT[0] + 260, EDIT[1] + 60)
-        paso("ventana Editor movida", "gui: ventana movida Editor", ref, serial_path)
+        paso("ventana Editor movida (arrastre)", "gui: ventana movida Editor", ref, serial_path)
 
-        # 14) Alt+Tab: cambia el foco a otra ventana
-        qmp.combo(["alt", "tab"])
-        time.sleep(0.4)
-        paso("alt-tab cambia de ventana", "gui: alt-tab -> ", ref, serial_path)
+        # 14) Alt+Tab: del Editor salta al Terminal (siguiente abierta del
+        #     enum); Alt+F4 cierra la Terminal enfocada
+        nombre = paso_alttab(qmp, ref, serial_path)
+        if nombre == "Terminal":
+            qmp.combo(["alt", "f4"])
+            time.sleep(0.5)
+            paso("alt-f4 cierra la Terminal", "gui: ventana cerrada Terminal", ref, serial_path)
+        else:
+            PASOS_MAL += 1
+            log(f"FALLA: alt-tab debía llegar al Terminal (llegó a {nombre})")
 
-        # 15) Alt+F4 cierra la ventana enfocada (el Editor)
-        qmp.combo(["alt", "f4"])
-        time.sleep(0.5)
-        paso("alt-f4 cierra ventana", "gui: ventana cerrada Editor", ref, serial_path)
-
-        # 16) menú Ventana del Program Manager: cascada
+        # 15) menú Ventana del Program Manager (aún en su sitio): cascada
         r.clic(*menu_ventana(PM))
         time.sleep(0.3)
         paso("menú Ventana abierto", "gui: menu abierto", ref, serial_path)
-        r.clic(PM[0] + 78 + 40, PM[1] + 32 + 3 + 9)  # ítem 0: Cascada
+        r.clic(*item_menu(PM, 0, col_ventana=True))
         paso("menú accion Cascada", "gui: menu accion Cascada", ref, serial_path)
         paso("cascada ejecutada", "gui: cascada", ref, serial_path)
 
-        # 17) mosaico
-        r.clic(*menu_ventana(PM))
-        time.sleep(0.3)
-        r.clic(PM[0] + 78 + 40, PM[1] + 32 + 3 + 18 + 9)  # ítem 1: Mosaico
-        paso("menú accion Mosaico", "gui: menu accion Mosaico", ref, serial_path)
-        paso("mosaico ejecutado", "gui: mosaico", ref, serial_path)
-
-        # 18) cerrar el Explorador con su botón ✕ (se reabre en su sitio)
-        r.doble_clic(*icono_pm(0))
-        paso("Explorador reabierto", "gui: ventana abierta Explorador", ref, serial_path)
-        r.clic(*btn_cerrar(EXPL))
-        paso("cierre con botón ✕", "gui: ventana cerrada Explorador", ref, serial_path)
-
-        # 19) captura del escritorio y verificación por píxeles
+        # 16) captura del escritorio y verificación por píxeles (tras cascada
+        #     las ventanas miden 320 px de alto: la franja inferior es fondo)
         ppm = os.path.join(salida_abs, "escritorio.ppm")
         qmp.cmd("screendump", {"filename": ppm})
         time.sleep(1.0)
@@ -411,12 +466,44 @@ def main():
         except ImportError:
             log("sin PIL; queda escritorio.ppm")
 
-        # 20) apagado limpio desde Archivo del Program Manager
-        r.clic(*menu_archivo(PM))
+        # 17) mosaico: la cascada movió el PM a (96,96) y el Explorador
+        #     (ya no enfocado: clicar la barra de menú del PM le dio el
+        #     foco) cubre su barra — pero el foco va primero, así que el
+        #     menú Ventana se abre en la posición ACTUAL del PM sin más
+        r.clic(*menu_ventana(PM_CASCADA))
         time.sleep(0.3)
-        r.clic(PM[0] + 6 + 40, PM[1] + 32 + 3 + 9)  # ítem 0: Apagar el sistema
+        paso("menú Ventana abierto (2ª vez)", "gui: menu abierto", ref, serial_path)
+        r.clic(*item_menu(PM_CASCADA, 1, col_ventana=True))
+        paso("menú accion Mosaico", "gui: menu accion Mosaico", ref, serial_path)
+        paso("mosaico ejecutado", "gui: mosaico", ref, serial_path)
+
+        # 18) cerrar las apps restantes con Alt+Tab + Alt+F4 hasta que solo
+        #     quede Programas (Alt+Tab es determinista: enum ascendente);
+        #     el teclado es inmune a las posiciones tras organizar
+        visitas_pm = 0
+        for _ in range(12):
+            nombre = paso_alttab(qmp, ref, serial_path)
+            if nombre is None:
+                break
+            if nombre == "Programas":
+                visitas_pm += 1
+                if visitas_pm >= 2:
+                    break                  # solo queda Programas
+                continue
+            qmp.combo(["alt", "f4"])
+            time.sleep(0.5)
+            paso(f"alt-f4 cierra {nombre}", f"gui: ventana cerrada {nombre}", ref, serial_path)
+
+        # 19) apagado limpio desde Archivo del Program Manager (tras mosaico
+        #     de 4 ventanas el PM queda en 512,384; cerrar ventanas no lo mueve)
+        r.clic(*menu_archivo(PM_MOSAICO))
+        time.sleep(0.3)
+        paso("menú Archivo abierto", "gui: menu abierto", ref, serial_path)
+        r.clic(*item_menu(PM_MOSAICO, 0))
+        paso("menú accion Apagar el sistema", "gui: menu accion Apagar el sistema", ref, serial_path)
         _, pos = esperar(serial_path, "APAGANDO", 30.0, desde=ref[0])
         if pos >= 0:
+            ref[0] = pos + len("APAGANDO")
             PASOS_OK += 1
             log("ok: apagar desde Archivo")
         else:
