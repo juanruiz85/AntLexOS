@@ -39,7 +39,7 @@ import re
 import sys
 ver = sys.argv[1]
 texto = open("CHANGELOG.md", encoding="utf-8").read()
-seccion = re.search(r"## \[v" + re.escape(ver) + r"\]\n(.*?)(?=\n## \[v|\Z)", texto, re.S)
+seccion = re.search(r"## \[v" + re.escape(ver) + r"\][^\n]*\n(.*?)(?=\n## \[v|\Z)", texto, re.S)
 print(seccion.group(1).strip() if seccion else f"AntLex OS v{ver}")
 EOF
 
