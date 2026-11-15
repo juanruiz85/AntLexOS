@@ -29,8 +29,13 @@ pub const alfs_off: u64 = 13 * 1024 * 1024;
 pub const alfs_size: u64 = 16 * 1024 * 1024;
 
 pub const kernel_load_addr: u64 = 0x100000;
-pub const kernel_max_size: u32 = 576 * 1024; // límite del archivo (staging de stage2: 0x10000..0xA0000, sin tocar los búferes VESA)
-pub const kernel_img_max: u32 = 2 * 1024 * 1024; // límite archivo+bss en memoria (loader UEFI; la partición P2 es de 4 MiB)
+// límite del archivo: stage2 carga por RONDAS de 512 KiB (lectura BIOS a
+// staging + copia a >=1 MiB con excursión a modo protegido que vuelve a
+// modo real), así que el archivo puede superar con mucho el staging
+pub const kernel_max_size: u32 = 2560 * 1024;
+// límite archivo+bss en memoria (loader UEFI; la partición P2 es de 4 MiB
+// y el heap empieza en 32 MiB, así que sobra margen)
+pub const kernel_img_max: u32 = 3 * 1024 * 1024;
 pub const kernel_stack_size: u32 = 64 * 1024;
 
 // Direcciones fijas del protocolo de arranque (BIOS stage2 y EFI las respetan)

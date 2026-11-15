@@ -33,6 +33,7 @@
 
 %define KERNEL_OFF_LBA  ((9*1024*1024)/SECT_SIZE)
 %define MAX_CHUNK       32                 ; sectores por lectura int 13h
+%define TROZO_MAX       0x80000            ; bytes por ronda (512 KiB: staging)
 %define HDR_ADDR        0x9000             ; cabecera del kernel (1 sector)
 %define KLOAD           0x10000            ; zona de carga temporal (real mode)
 %define KBASE           0x100000           ; dirección final del kernel
@@ -79,32 +80,51 @@ stage2:
         cmp dword [HDR_ADDR], 0x524B4C41   ; "ALKR"
         jne err_kernel
         ; acotar kernel_size al máximo que puede cargar el cargador
-        ; (576 KiB: el staging 0x10000..0xA0000 no debe tocar los búferes
-        ; VESA de 0xA0000); una cabecera corrupta no debe desbordar la carga
-        cmp dword [HDR_ADDR+20], 576*1024
+        ; (2,5 MiB, mismo límite que layout.zig kernel_max_size: la carga va
+        ; por RONDAS de 512 KiB con copia a 1 MiB en modo protegido, así que
+        ; el staging 0x10000..0x90000 nunca se desborda); una cabecera
+        ; corrupta no debe desbordar la carga
+        cmp dword [HDR_ADDR+20], 2560*1024
         ja err_kernel
         ; y un tamaño cero también es una cabecera corrupta
         cmp dword [HDR_ADDR+20], 0
         je err_kernel
 
 ; ------------------------------ 2) kernel -----------------------------------
+; Carga por RONDAS: el staging en modo real solo llega hasta 0x90000
+; (512 KiB desde 0x10000), así que cada ronda se lee a staging con la BIOS
+; y se copia a su sitio (>=1 MiB) con una excursión a modo protegido que
+; DESPUÉS VUELVE a modo real para poder seguir leyendo con int 13h.
         mov eax, [HDR_ADDR+20]             ; kernel_size (bytes)
         mov [k_size], eax
         add eax, SECT_SIZE-1
         shr eax, SECT_SHIFT
-        mov [k_sect], eax                  ; sectores restantes
+        mov [k_sect], eax                  ; sectores totales restantes
         mov dword [k_lba], KERNEL_OFF_LBA+1
-        mov word [k_seg], KLOAD>>4         ; destino: desplazamiento 0 siempre
-        mov word [k_off], 0
+        mov dword [k_dest], KBASE          ; destino (modo protegido) de la ronda
 
-.bucle_kernel:
+.bucle_ronda:
         cmp dword [k_sect], 0
         je .kernel_cargado
-        ; chunk = min(k_sect, MAX_CHUNK)
-        mov ecx, MAX_CHUNK
+        ; sectores de esta ronda = min(k_sect, TROZO_MAX/SECT_SIZE)
+        mov ecx, TROZO_MAX >> SECT_SHIFT
         cmp ecx, [k_sect]
-        jbe .chunk_ok
+        jbe .ronda_ok
         mov ecx, [k_sect]
+.ronda_ok:
+        mov [ronda_sect], ecx
+        mov [ronda_total], ecx              ; guardar: ronda_sect se consume
+        ; --- leer la ronda completa a staging (0x10000) por chunks ---
+        mov word [k_seg], KLOAD>>4
+        mov word [k_off], 0
+.bucle_kernel:
+        cmp dword [ronda_sect], 0
+        je .ronda_leida
+        ; chunk = min(ronda_sect, MAX_CHUNK)
+        mov ecx, MAX_CHUNK
+        cmp ecx, [ronda_sect]
+        jbe .chunk_ok
+        mov ecx, [ronda_sect]
 .chunk_ok:
         mov [chunk], cx
         mov [dap2_cnt], cx
@@ -118,10 +138,27 @@ stage2:
         ; avanzar punteros
         movzx eax, word [chunk]
         add [k_lba], eax
-        sub [k_sect], eax
+        sub [ronda_sect], eax
         shl eax, SECT_SHIFT-4              ; bytes -> párrafos
-        add [k_seg], ax                    ; k_seg es word: add word [k_seg], ax
+        add [k_seg], ax
         jmp .bucle_kernel
+.ronda_leida:
+        TRAZA 'r'                          ; DEBUG: ronda leida en staging
+        ; --- copiar la ronda a >=1 MiB por modo protegido ---
+        mov eax, [ronda_total]
+        shl eax, SECT_SHIFT                ; bytes leídos (incluye el relleno
+        mov [cp_lon], eax                  ; del último sector: memoria libre
+        mov dword [cp_origen], KLOAD       ; gestionada después por el kernel)
+        mov eax, [k_dest]
+        mov [cp_destino], eax
+        call copiar_pm
+        TRAZA 'p'                          ; DEBUG: copia PM hecha y de vuelta
+        ; --- avanzar el destino y pasar a la ronda siguiente ---
+        mov eax, [ronda_total]
+        sub [k_sect], eax
+        shl eax, SECT_SHIFT
+        add [k_dest], eax
+        jmp .bucle_ronda
 .kernel_cargado:
         TRAZA 'K'
 
@@ -262,16 +299,8 @@ pm_entry:
         mov fs, ax
         mov gs, ax
 
-        ; --- copiar kernel: staging (0x10000) -> 0x100000 ---
-        ; EN MODO PROTEGIDO y ANTES de construir las tablas de páginas:
-        ; estas viven en 0x90000..0x96000 y con kernels grandes el staging
-        ; llega a pisarlas; copiando aquí da igual (el staging ya no se usa)
-        mov esi, KLOAD
-        mov edi, KBASE
-        mov ecx, [k_size]
-        cld
-        rep movsb
-
+        ; --- el kernel ya está en 0x100000: se copió por rondas durante la
+        ; carga (copiar_pm) porque el staging de modo real solo tiene 512 KiB
         ; --- tablas de páginas: identidad 4 GiB con páginas de 2 MiB ---
         mov edi, PT_PML4
         xor eax, eax
@@ -446,6 +475,51 @@ teletype:
 .fin:
         ret
 
+; ----------------------------------------------------------------------------
+; copiar_pm — copia [cp_lon] bytes de [cp_origen] (lineal <1 MiB) a
+; [cp_destino] (>=1 MiB) con una excursión a modo protegido que VUELVE a
+; modo real: así el bucle de lectura int 13h de la ronda siguiente sigue
+; disponible. Requiere IF=0 (desde el arranque de stage2: sin IDT válida
+; no puede haber interrupciones) y los descriptores 16 bits de la GDT
+; (0x20 código, 0x28 datos). La pila de modo real se preserva: no se
+; apila nada en modo protegido y sp no se toca.
+; ----------------------------------------------------------------------------
+copiar_pm:
+        lgdt [gdtr]
+        mov eax, cr0
+        or eax, 1                           ; PE
+        mov cr0, eax
+        jmp 0x08:cpm_32
+[BITS 32]
+cpm_32:
+        mov ax, 0x10
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        mov esi, [cp_origen]
+        mov edi, [cp_destino]
+        mov ecx, [cp_lon]
+        cld
+        rep movsb
+        ; volver a modo real: salto lejano al selector de código 16 bits
+        jmp 0x20:cpm_16
+[BITS 16]
+cpm_16:
+        mov ax, 0x28                        ; datos 16 bits
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        mov eax, cr0
+        and al, 0xFE                        ; !PE
+        mov cr0, eax
+        jmp 0:cpm_rm                        ; CS real (segmento 0)
+cpm_rm:
+        xor ax, ax
+        mov ds, ax
+        mov es, ax
+        mov ss, ax
+        ret
+
 ; ============================================================================
 ;                                  datos
 ; ============================================================================
@@ -465,6 +539,12 @@ k_lba:          dd 0
 k_seg:          dw 0
 k_off:          dw 0
 chunk:          dw 0
+k_dest:         dd 0                         ; destino PM de la ronda actual
+ronda_sect:     dd 0                         ; sectores restantes de la ronda
+ronda_total:    dd 0                         ; sectores totales de la ronda
+cp_origen:      dd 0                         ; copiar_pm: origen lineal
+cp_destino:     dd 0                         ; copiar_pm: destino lineal
+cp_lon:         dd 0                         ; copiar_pm: bytes
 
 fb_addr:        dd 0
 fb_w:           dw 0
@@ -487,8 +567,10 @@ align 8
 gdt:
         dq 0x0000000000000000                 ; nulo
         dq 0x00CF9A000000FFFF                 ; 0x08: código 32 bits (fase PM)
-        dq 0x00CF92000000FFFF                 ; 0x10: datos
+        dq 0x00CF92000000FFFF                 ; 0x10: datos 32 bits
         dq 0x00AF9A000000FFFF                 ; 0x18: código 64 bits (L=1)
+        dq 0x00009A000000FFFF                 ; 0x20: código 16 bits (vuelta RM)
+        dq 0x000092000000FFFF                 ; 0x28: datos 16 bits (vuelta RM)
 gdtr:
         dw gdtr - gdt - 1
         dd gdt
