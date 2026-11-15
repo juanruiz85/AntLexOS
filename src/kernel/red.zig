@@ -54,6 +54,11 @@ inline fn tomas16(b: []const u8, o: usize) u16 {
     return (@as(u16, b[o]) << 8) | b[o + 1];
 }
 
+inline fn tomas32(b: []const u8, o: usize) u32 {
+    return (@as(u32, b[o]) << 24) | (@as(u32, b[o + 1]) << 16) |
+        (@as(u32, b[o + 2]) << 8) | b[o + 3];
+}
+
 /// Checksum de Internet (RFC 1071): suma de palabras de 16 bits en orden
 /// de red con acarreo y complemento a uno. Vector verificado contra el
 /// ejemplo clásico de la Wikipedia (0xB861).
@@ -724,7 +729,8 @@ fn procesarIPv4(trama: []const u8) void {
     @memcpy(&mac_origen, trama[6..12]);
     switch (paquete[9]) {
         PROTO_ICMP => procesarIcmp(paquete[20..lon_total], origen, mac_origen),
-        else => {}, // TCP llega en la Fase 9b
+        PROTO_TCP => procesarTcp(paquete[20..lon_total]),
+        else => {},
     }
 }
 
@@ -832,6 +838,278 @@ pub fn ping(ip: [4]u8) EstadisticaPing {
     }
     if (r.respondidos > 0) r.media_ms = @intCast(total / r.respondidos);
     return r;
+}
+
+// ---------------------------------------------------------------------------
+// TCP cliente (Fase 9b): UNA conexión con máquina de estados mínima
+// ---------------------------------------------------------------------------
+
+const PROTO_TCP: u8 = 6;
+const TCP_FIN: u16 = 0x01;
+const TCP_SYN: u16 = 0x02;
+const TCP_RST: u16 = 0x04;
+const TCP_ACK: u16 = 0x10;
+const TCP_MSS: u16 = 1460;
+const VENTANA_TCP: u16 = 8192;
+const RX_TCP_TAM = 8192;
+
+pub const TcpEstado = enum { cerrada, syn_enviado, conectada, fin_enviado };
+
+var tcp_estado: TcpEstado = .cerrada;
+var tcp_ip_remota: [4]u8 = .{ 0, 0, 0, 0 };
+var tcp_puerto_remoto: u16 = 0;
+var tcp_puerto_local: u16 = 40000;
+var tcp_seq: u32 = 0;
+var tcp_ack: u32 = 0; // próximo seq que esperamos del par
+var tcp_ack_recibido: u32 = 0; // último ack del par hacia nosotros
+var tcp_fin_recibido = false;
+var rx_tcp: [RX_TCP_TAM]u8 = undefined;
+var rx_tcp_len: usize = 0;
+
+/// Comparación de números de secuencia con envolvente (estilo RFC 1982):
+/// cierto si `a` está estrictamente «antes» que `b` en el anillo u32.
+fn antesDe(a: u32, b: u32) bool {
+    const d = b -% a;
+    return d != 0 and d < 0x80000000;
+}
+
+/// Checksum TCP con pseudo-cabecera IPv4 (RFC 9293 §3.1). Vector verificado
+/// con Python: SYN 10.0.2.15:40001→10.0.2.2:80 con MSS → 0xD383.
+pub fn checksumTcp(ip_o: [4]u8, ip_d: [4]u8, seg: []const u8) u16 {
+    var suma: u32 = 0;
+    suma +%= (@as(u32, ip_o[0]) << 8) | ip_o[1];
+    suma +%= (@as(u32, ip_o[2]) << 8) | ip_o[3];
+    suma +%= (@as(u32, ip_d[0]) << 8) | ip_d[1];
+    suma +%= (@as(u32, ip_d[2]) << 8) | ip_d[3];
+    suma +%= PROTO_TCP;
+    suma +%= @intCast(seg.len);
+    var i: usize = 0;
+    while (i + 1 < seg.len) : (i += 2) {
+        suma +%= (@as(u32, seg[i]) << 8) | seg[i + 1];
+    }
+    if (i < seg.len) suma +%= @as(u32, seg[i]) << 8; // relleno impar
+    while (suma >> 16 != 0) suma = (suma & 0xFFFF) + (suma >> 16);
+    return @intCast(~suma & 0xFFFF);
+}
+
+/// Construye un segmento TCP (cabecera de 20 B, +MSS si SYN, + carga) en
+/// `seg` con el checksum a cero (lo pone el emisor, que conoce las IPs).
+/// Devuelve la longitud total.
+pub fn armarSegmentoTcp(
+    seg: []u8,
+    puerto_o: u16,
+    puerto_d: u16,
+    seq: u32,
+    ack: u32,
+    banderas: u16,
+    carga: []const u8,
+) usize {
+    pones16(seg, 0, puerto_o);
+    pones16(seg, 2, puerto_d);
+    pones32(seg, 4, seq);
+    pones32(seg, 8, ack);
+    const con_mss = (banderas & TCP_SYN) != 0;
+    const despl_datos: usize = if (con_mss) 24 else 20;
+    seg[12] = @intCast((despl_datos / 4) << 4); // offset de datos (nº words)
+    seg[13] = @intCast(banderas & 0xFF);
+    pones16(seg, 14, VENTANA_TCP);
+    pones16(seg, 16, 0); // checksum (a rellenar)
+    pones16(seg, 18, 0); // puntero urgente
+    if (con_mss) {
+        seg[20] = 2; // kind: MSS
+        seg[21] = 4; // longitud
+        pones16(seg, 22, TCP_MSS);
+    }
+    if (carga.len > 0) @memcpy(seg[despl_datos .. despl_datos + carga.len], carga);
+    return despl_datos + carga.len;
+}
+
+/// Envía un segmento de la conexión activa (checksum + IPv4 + trama).
+fn enviarSegmentoTcp(banderas: u16, seq: u32, ack: u32, carga: []const u8) bool {
+    var seg: [1560]u8 = undefined;
+    const n = armarSegmentoTcp(&seg, tcp_puerto_local, tcp_puerto_remoto, seq, ack, banderas, carga);
+    pones16(&seg, 16, checksumTcp(IP_NUESTRA, tcp_ip_remota, seg[0..n]));
+    var paquete: [1600]u8 = undefined;
+    _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_TCP, IP_NUESTRA, tcp_ip_remota);
+    @memcpy(paquete[20 .. 20 + n], seg[0..n]);
+    return enviarTrama(arp_mac, ETH_IPV4, paquete[0 .. 20 + n]);
+}
+
+fn procesarTcp(segmento: []const u8) void {
+    if (segmento.len < 20) return;
+    const puerto_o = tomas16(segmento, 0);
+    const puerto_d = tomas16(segmento, 2);
+    const seq = tomas32(segmento, 4);
+    const ack = tomas32(segmento, 8);
+    const banderas: u16 = segmento[13];
+    const despl = @as(usize, segmento[12] >> 4) * 4;
+    if (despl < 20 or despl > segmento.len) return;
+    const datos = segmento[despl..];
+
+    if (tcp_estado == .cerrada) return; // sin conexión: ignorar (sin RST en v1)
+    if (puerto_o != tcp_puerto_remoto or puerto_d != tcp_puerto_local) return;
+    if ((banderas & TCP_RST) != 0) {
+        tcp_estado = .cerrada;
+        serial.puts("red: tcp reset\n");
+        return;
+    }
+    if ((banderas & TCP_ACK) != 0) tcp_ack_recibido = ack;
+
+    switch (tcp_estado) {
+        .syn_enviado => {
+            // SYN+ACK: el par confirma nuestro SYN (ack = seq+1)
+            if ((banderas & TCP_SYN) != 0 and (banderas & TCP_ACK) != 0 and ack == tcp_seq +% 1) {
+                tcp_ack = seq +% 1; // el SYN del par consume un número
+                _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+                tcp_seq +%= 1; // nuestro SYN también consume uno: los datos
+                // empiezan en seq+1 (si no, el par recorta el primer byte)
+                tcp_estado = .conectada;
+                var b: [24]u8 = undefined;
+                serial.puts("red: tcp conectado ");
+                serial.puts(formatearIp(tcp_ip_remota, &b));
+                serial.puts(":");
+                serial.putDec(tcp_puerto_remoto);
+                serial.puts("\n");
+            }
+        },
+        .conectada, .fin_enviado => {
+            if (datos.len > 0) {
+                if (seq == tcp_ack) { // en orden: aceptar y acuse inmediato
+                    const cupo = rx_tcp.len - rx_tcp_len;
+                    const n = @min(datos.len, cupo);
+                    if (n > 0) {
+                        @memcpy(rx_tcp[rx_tcp_len..][0..n], datos[0..n]);
+                        rx_tcp_len += n;
+                    }
+                    tcp_ack = seq +% @as(u32, @intCast(datos.len));
+                    _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+                } else {
+                    // duplicado o fuera de orden: re-ACK con la posición
+                    // actual (sin SACK en v1) para forzar retransmisión
+                    _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+                }
+            }
+            // FIN del par: consume un número de secuencia más
+            if ((banderas & TCP_FIN) != 0 and seq +% @as(u32, @intCast(datos.len)) == tcp_ack and !tcp_fin_recibido) {
+                tcp_ack = tcp_ack +% 1;
+                _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+                tcp_fin_recibido = true;
+            }
+        },
+        .cerrada => {},
+    }
+}
+
+pub fn tcpEstado() TcpEstado {
+    return tcp_estado;
+}
+
+pub fn tcpFinRecibido() bool {
+    return tcp_fin_recibido;
+}
+
+/// Abre la conexión: ARP + three-way handshake con SYN retransmitido
+/// (3 intentos de 1 s). Una sola conexión a la vez.
+pub fn tcpConectar(ip: [4]u8, puerto: u16) bool {
+    if (!activa or tcp_estado != .cerrada) return false;
+    if (!resolverArp(ip)) return false;
+    tcp_ip_remota = ip;
+    tcp_puerto_remoto = puerto;
+    tcp_puerto_local +%= 1;
+    if (tcp_puerto_local < 40000) tcp_puerto_local = 40000;
+    tcp_seq = 0x414C0000 ^ @as(u32, @truncate(pit.leerTics()));
+    tcp_ack = 0;
+    tcp_ack_recibido = 0;
+    rx_tcp_len = 0;
+    tcp_fin_recibido = false;
+
+    var intento: u8 = 0;
+    while (intento < 3) : (intento += 1) {
+        _ = enviarSegmentoTcp(TCP_SYN, tcp_seq, 0, "");
+        tcp_estado = .syn_enviado;
+        const t0 = pit.leerTics();
+        while (pit.leerTics() - t0 < 100) { // 1 s por intento
+            procesar();
+            if (tcp_estado == .conectada) return true;
+            if (tcp_estado == .cerrada) return false; // RST
+        }
+    }
+    tcp_estado = .cerrada;
+    return false;
+}
+
+/// Envía `datos` segmentando por MSS y esperando el ACK de cada trozo con
+/// retransmisión (4 intentos de 500 ms).
+pub fn tcpEnviar(datos: []const u8) bool {
+    if (tcp_estado != .conectada and tcp_estado != .fin_enviado) return false;
+    var off: usize = 0;
+    while (off < datos.len) {
+        const n = @min(datos.len - off, TCP_MSS);
+        const trozo = datos[off .. off + n];
+        const seq_envio = tcp_seq;
+        var confirmado = false;
+        var intento: u8 = 0;
+        while (intento < 4 and !confirmado) : (intento += 1) {
+            if (!enviarSegmentoTcp(TCP_ACK, seq_envio, tcp_ack, trozo)) return false;
+            const t0 = pit.leerTics();
+            while (pit.leerTics() - t0 < 50) { // 500 ms por intento
+                procesar();
+                if (tcp_estado == .cerrada) return false;
+                // confirmado cuando el ack del par alcanza seq+n (el ack
+                // NO está antes del final del segmento en el anillo u32)
+                confirmado = !antesDe(tcp_ack_recibido, seq_envio +% @as(u32, @intCast(n)));
+                if (confirmado) break;
+            }
+        }
+        if (!confirmado) {
+            tcp_estado = .cerrada;
+            return false;
+        }
+        tcp_seq = seq_envio +% @as(u32, @intCast(n));
+        off += n;
+    }
+    return true;
+}
+
+/// Recibe hasta buf.len bytes: sondea hasta que haya datos, llegue FIN/RST
+/// o se agote el tiempo (tics de 100 Hz). El resto pendiente queda para la
+/// siguiente lectura. Devuelve los bytes copiados.
+pub fn tcpRecibir(buf: []u8, tics: u64) usize {
+    const t0 = pit.leerTics();
+    while (true) {
+        procesar();
+        if (rx_tcp_len > 0) break;
+        if (tcp_fin_recibido or tcp_estado == .cerrada) break;
+        if (pit.leerTics() - t0 >= tics) break;
+    }
+    const n = @min(rx_tcp_len, buf.len);
+    if (n > 0) {
+        @memcpy(buf[0..n], rx_tcp[0..n]);
+        if (rx_tcp_len > n) {
+            std.mem.copyForwards(u8, rx_tcp[0 .. rx_tcp_len - n], rx_tcp[n..rx_tcp_len]);
+        }
+        rx_tcp_len -= n;
+    }
+    return n;
+}
+
+/// Cierra la conexión: FIN (retransmitido) y espera breve del ACK.
+pub fn tcpCerrar() void {
+    if (tcp_estado == .conectada or tcp_estado == .fin_enviado) {
+        var intento: u8 = 0;
+        while (intento < 3) : (intento += 1) {
+            _ = enviarSegmentoTcp(TCP_FIN | TCP_ACK, tcp_seq, tcp_ack, "");
+            const t0 = pit.leerTics();
+            while (pit.leerTics() - t0 < 30) { // 300 ms por intento
+                procesar();
+                if (tcp_ack_recibido == tcp_seq +% 1) break;
+            }
+            if (tcp_ack_recibido == tcp_seq +% 1) break;
+        }
+        tcp_seq +%= 1;
+        serial.puts("red: tcp cerrado\n");
+    }
+    tcp_estado = .cerrada;
 }
 
 // ---------------------------------------------------------------------------
@@ -951,4 +1229,45 @@ test "red: parseo y formato de direcciones" {
 
 test "red: autoprueba de paquetes completa" {
     try testing.expect(autopruebaPaquetes());
+}
+
+test "red: checksum TCP con pseudo-cabecera (vector verificado)" {
+    // SYN 10.0.2.15:40001 → 10.0.2.2:80 con MSS 1460 (calculado con Python;
+    // el primer vector tenía el offset a 5 words con MSS presente: era 6)
+    var seg: [24]u8 = undefined;
+    const n = armarSegmentoTcp(&seg, 40001, 80, 1, 0, TCP_SYN, "");
+    try testing.expectEqual(@as(usize, 24), n);
+    pones16(&seg, 16, 0); // el constructor deja el checksum a cero
+    try testing.expectEqual(@as(u16, 0xC383), checksumTcp(IP_NUESTRA, IP_PUERTA, seg[0..n]));
+}
+
+test "red: constructor de segmento TCP (cabecera y MSS)" {
+    var seg: [1600]u8 = undefined;
+    const n = armarSegmentoTcp(&seg, 40001, 443, 0x11223344, 0x55667788, TCP_ACK, "hola");
+    try testing.expectEqual(@as(usize, 24), n);
+    try testing.expectEqual(@as(u16, 40001), tomas16(&seg, 0));
+    try testing.expectEqual(@as(u16, 443), tomas16(&seg, 2));
+    try testing.expectEqual(@as(u32, 0x11223344), tomas32(&seg, 4));
+    try testing.expectEqual(@as(u32, 0x55667788), tomas32(&seg, 8));
+    try testing.expectEqual(@as(u8, 5 << 4), seg[12]); // offset 5 words (sin MSS)
+    try testing.expectEqual(@as(u8, TCP_ACK), seg[13]);
+    try testing.expectEqual(VENTANA_TCP, tomas16(&seg, 14));
+    try testing.expectEqual(@as(u8, 'h'), seg[20]);
+    try testing.expectEqual(@as(u8, 'a'), seg[23]);
+
+    const m = armarSegmentoTcp(&seg, 40001, 443, 1, 0, TCP_SYN, "");
+    try testing.expectEqual(@as(usize, 24), m);
+    try testing.expectEqual(@as(u8, 2), seg[20]); // kind MSS
+    try testing.expectEqual(@as(u8, 4), seg[21]); // longitud
+    try testing.expectEqual(TCP_MSS, tomas16(&seg, 22));
+    try testing.expectEqual(@as(u8, 6 << 4), seg[12]); // offset 6 words (con MSS)
+}
+
+test "red: comparación de secuencia con envolvente" {
+    try testing.expect(antesDe(10, 20));
+    try testing.expect(!antesDe(20, 10));
+    try testing.expect(!antesDe(7, 7));
+    // envolvente: 0xFFFFFFFF está antes de 0x10
+    try testing.expect(antesDe(0xFFFF_FFFF, 0x10));
+    try testing.expect(!antesDe(0x10, 0xFFFF_FFFF));
 }

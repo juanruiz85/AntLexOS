@@ -1172,6 +1172,7 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "atributos", .alias = "attrib", .ayuda = "tipo, tamano y bit de ejecutable", .uso = "atributos <archivo>", .ejecutar = cmdAtributos },
     .{ .nombre = "red", .alias = "net", .ayuda = "estado de la red (virtio-net)", .uso = "red", .ejecutar = cmdRed },
     .{ .nombre = "ping", .alias = "", .ayuda = "3 ecos ICMP a una IP", .uso = "ping <ip>", .ejecutar = cmdPing },
+    .{ .nombre = "tcp", .alias = "", .ayuda = "GET de prueba sobre TCP plano", .uso = "tcp <ip> <puerto> <ruta>", .ejecutar = cmdTcp },
     .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
     .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };
@@ -1426,6 +1427,102 @@ fn cmdPing(args: []const u8) void {
         entero(r.media_ms);
         salida(" ms");
     }
+    salida("\n");
+}
+
+fn cmdTcp(args: []const u8) void {
+    // uso: tcp <ip> <puerto> <ruta> — GET de prueba sobre TCP plano (Fase 9b)
+    var it = std.mem.tokenizeScalar(u8, args, ' ');
+    const ip_txt = it.next() orelse {
+        fallo("uso: tcp <ip> <puerto> <ruta>");
+        return;
+    };
+    const puerto_txt = it.next() orelse {
+        fallo("uso: tcp <ip> <puerto> <ruta>");
+        return;
+    };
+    const ruta = it.next() orelse "/";
+    if (!red.activaRed()) {
+        fallo("red no disponible");
+        return;
+    }
+    const ip = red.parsearIp(ip_txt) orelse {
+        fallo("direccion no valida (ejemplo: tcp 10.0.2.2 8123 /ruta)");
+        return;
+    };
+    var puerto: u32 = 0;
+    for (puerto_txt) |c| {
+        if (c < '0' or c > '9') {
+            fallo("puerto no valido");
+            return;
+        }
+        puerto = puerto * 10 + (c - '0');
+        if (puerto > 65535) {
+            fallo("puerto no valido");
+            return;
+        }
+    }
+    if (puerto == 0) {
+        fallo("puerto no valido");
+        return;
+    }
+    if (!red.tcpConectar(ip, @intCast(puerto))) {
+        salida("tcp: no se pudo conectar a ");
+        salida(ip_txt);
+        salida("\n");
+        return;
+    }
+    salida("tcp: conectado a ");
+    salida(ip_txt);
+    salida("\n");
+
+    // petición HTTP/1.1 mínima con cierre del servidor
+    var peticion: [512]u8 = undefined;
+    var n: usize = 0;
+    const anexar = struct {
+        fn f(b: []u8, i: *usize, s: []const u8) void {
+            const l = @min(s.len, b.len - i.*);
+            @memcpy(b[i.*..][0..l], s[0..l]);
+            i.* += l;
+        }
+    }.f;
+    anexar(&peticion, &n, "GET ");
+    anexar(&peticion, &n, ruta);
+    anexar(&peticion, &n, " HTTP/1.1\r\nHost: ");
+    anexar(&peticion, &n, ip_txt);
+    anexar(&peticion, &n, "\r\nUser-Agent: AntLexOS\r\nConnection: close\r\n\r\n");
+    if (!red.tcpEnviar(peticion[0..n])) {
+        fallo("no se pudo enviar la peticion");
+        red.tcpCerrar();
+        return;
+    }
+
+    // respuesta: acumular total y guardar la primera línea (estado)
+    var total: u32 = 0;
+    var primera: [80]u8 = undefined;
+    var primera_len: usize = 0;
+    var trozo: [1024]u8 = undefined;
+    var vueltas: u8 = 0;
+    while (vueltas < 8) : (vueltas += 1) {
+        const r = red.tcpRecibir(&trozo, 100); // 1 s de margen por lectura
+        if (r > 0) {
+            vueltas = 0; // con datos seguimos esperando más
+            total += @intCast(r);
+            if (primera_len == 0) {
+                for (trozo[0..r]) |c| {
+                    if (c == '\r' or c == '\n') break;
+                    if (primera_len >= primera.len) break;
+                    primera[primera_len] = c;
+                    primera_len += 1;
+                }
+            }
+        } else if (red.tcpFinRecibido() or red.tcpEstado() == .cerrada) break;
+    }
+    red.tcpCerrar();
+    salida("tcp: ");
+    entero(total);
+    salida(" bytes · ");
+    salida(if (primera_len > 0) primera[0..primera_len] else "sin respuesta");
     salida("\n");
 }
 
