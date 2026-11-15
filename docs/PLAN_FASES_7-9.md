@@ -217,7 +217,7 @@ para abrir con doble clic — el "wget" propio del sistema.
 |---|---|---|---|
 | 9a | Driver virtio-net 1.0 (PCI caps modernas, anillos RX/TX por polling) + ARP + IPv4 + ICMP + `red`/`ping` + autoprueba 15 + arnés probar_red | (este commit) | ✅ probar_red 12/12 (ARP de la puerta, ping 3/3 ecos, ACPI) · 61/61 host · 3 bugs de driver cazados con filter-dump (P-0094) |
 | 9b | TCP cliente + TLS 1.3 (CA pinning) + HTTP/1.1 + `tienda`/`descargar` + repo AntLexApps + e2e contra GitHub | (en curso) | 🔶 TCP COMPLETO (bfa9033, arnés 9/9) · TLS 1.3: CH/SH/EE/Cert OK contra servidor Python local; el CertificateVerify RSA-PSS aún no verifica (siguiente punto) — plan de claves validado contra vectores RFC 8448 (test en tls.zig) |
-| 9b-tls | Siguiente: depurar PSS del CertVerify (comparar con verificación Python de la misma firma), Finished del servidor/cliente, datos de aplicación, luego HTTP/tienda/descargar | — | ⏳ |
+| 9b-tls | Siguiente: el CertVerify PSS falla solo por las ENTRADAS: `rsa.PSSSignature.verify` de std YA se verificó en host contra una firma openssl dgst -sigopt rsa_padding_mode:pss (saltlen 32) → revisar (a) el hash de la transcripción en el momento del CV (¿CH+SH+EE+Cert exactos?), (b) el contexto «TLS 1.3, server CertificateVerify» (33 B) + 0x00 + hash, (c) la extracción de la firma (cuerpo[4..260], sig_len 256). Después: Finished s/c, close_notify, datos de aplicación, HTTP, tienda/descargar | — | ⏳ |
 | 9c | Docs (manuales, PRUEBAS, README, REV-v1.4.0-dev) y batería final | — | ⏳ |
 
 ---
