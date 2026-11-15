@@ -240,3 +240,28 @@ para abrir con doble clic — el "wget" propio del sistema.
 > aceptado y documentado; S2 pánicas de apps; S3 alias @memcpy corregido;
 > S4 mapeo de teclas ES en QMP). La Fase 8 (escritorio Win 3.11) puede
 > empezar sobre esta base.
+
+
+## Estado 9b-4 (sesión del 2026-11-15, commit 599a591) — RESTA UN BUG
+
+`probar_tls.py` PASA 10/10. `probar_descargar.py` 13/15: fallan SOLO
+«descargar: CALC verificado» e «instalado» — el GET del cuerpo grande
+(56384 B) acaba en «tamano inesperado (0 != 56384)».
+
+Arreglado esta sesión: window update de TCP al drenar rx_tcp (había
+deadlock: ACK con ventana 0 y el servidor esperaba para siempre), FIN de
+TCP sin close_notify (Python cierra así), consumo de registros dentro
+del bucle de lectura de procesarEntrada, límite de registro 16401
+(16384+1+16), registro de datos espera si la entrega está llena (no es
+error).
+
+Bug restante: el cuerpo >1 registro llega solo hasta ~190 B (las
+cabeceras) y luego 25 s de silencio SIN ninguna traza de error. El pcap
+muestra el servidor enviándolo todo con ventanas 8192. Siguiente paso:
+instrumentar consumirRegistros/descifrarRegistro con el tamaño de cada
+registro descifrado y el nivel de entrega tras cada procesarEntrada en
+el bucle de recibir() — sospechar del path recibir()→procesarEntrada()
+cuando entrega se llena exactamente (16384) y del trozo de 2048 de
+procesarEntrada cuando rx_flujo tiene un registro grande parcial.
+Herramienta: `source tools/sandbox_entorno.sh && python3 tools/diag_tls.py`
+(hace GET de 56 KB con CA anclada y vuelca el pcap).
