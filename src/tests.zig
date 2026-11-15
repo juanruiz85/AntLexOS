@@ -20,7 +20,9 @@ const apps = @import("kernel/apps.zig");
 // sus propios pasos de prueba en build.zig)
 const alx_def = @import("kernel/alx_def.zig");
 // Fase 9: red — la lógica pura de paquetes (checksum, ARP, IPv4, ICMP)
+// y TLS 1.3 (epoch, ClientHello, raíz anclada, base64)
 const red = @import("kernel/red.zig");
+const tls = @import("kernel/tls.zig");
 
 test "alfs: ejecuta las pruebas del formato y del volumen" {
     // referenciar los módulos obliga a compilar sus bloques test
@@ -38,6 +40,10 @@ test "fase 7: definiciones del formato .ALX (cabecera, asociaciones)" {
 
 test "fase 9: red (checksums, ARP, IPv4, ICMP, formatos)" {
     _ = red;
+}
+
+test "fase 9b: TLS 1.3 (epoch, ClientHello, raíz anclada, base64)" {
+    _ = tls;
 }
 
 // ---------------------------------------------------------------------------

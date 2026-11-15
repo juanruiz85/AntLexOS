@@ -22,6 +22,7 @@ const reloj = @import("reloj.zig");
 const alx = @import("alx.zig");
 const alx_def = @import("alx_def.zig");
 const red = @import("red.zig");
+const tls = @import("tls.zig");
 const gui = @import("gui.zig"); // abrirApp/editorAbrir (Fase 7)
 const autoprueba = @import("autoprueba.zig");
 const antlex = @import("antlex.zig");
@@ -1173,6 +1174,7 @@ const COMANDOS = [_]Comando{
     .{ .nombre = "red", .alias = "net", .ayuda = "estado de la red (virtio-net)", .uso = "red", .ejecutar = cmdRed },
     .{ .nombre = "ping", .alias = "", .ayuda = "3 ecos ICMP a una IP", .uso = "ping <ip>", .ejecutar = cmdPing },
     .{ .nombre = "tcp", .alias = "", .ayuda = "GET de prueba sobre TCP plano", .uso = "tcp <ip> <puerto> <ruta>", .ejecutar = cmdTcp },
+    .{ .nombre = "https", .alias = "", .ayuda = "GET de prueba sobre TLS 1.3", .uso = "https <ip> <puerto> <host> <ruta>", .ejecutar = cmdHttps },
     .{ .nombre = "apagar", .alias = "shutdown", .ayuda = "sincroniza y apaga (QEMU cierra)", .uso = "apagar", .ejecutar = cmdApagar },
     .{ .nombre = "reiniciar", .alias = "reboot", .ayuda = "sincroniza y reinicia", .uso = "reiniciar", .ejecutar = cmdReiniciar },
 };
@@ -1354,7 +1356,14 @@ fn cmdAtributos(args: []const u8) void {
 // ---------------------------------------------------------------------------
 
 fn cmdRed(args: []const u8) void {
-    _ = args;
+    if (std.mem.startsWith(u8, args, "ca ")) {
+        cmdRedCa(args[3..]);
+        return;
+    }
+    if (std.mem.eql(u8, args, "ca")) {
+        cmdRedCa("");
+        return;
+    }
     if (!red.activaRed()) {
         salida("red: sin dispositivo virtio-net\n");
         return;
@@ -1524,6 +1533,141 @@ fn cmdTcp(args: []const u8) void {
     salida(" bytes · ");
     salida(if (primera_len > 0) primera[0..primera_len] else "sin respuesta");
     salida("\n");
+}
+
+fn cmdHttps(args: []const u8) void {
+    // uso: https <ip> <puerto> <host> <ruta> — GET sobre TLS 1.3 (Fase 9b)
+    var it = std.mem.tokenizeScalar(u8, args, ' ');
+    const ip_txt = it.next() orelse {
+        fallo("uso: https <ip> <puerto> <host> <ruta>");
+        return;
+    };
+    const puerto_txt = it.next() orelse {
+        fallo("uso: https <ip> <puerto> <host> <ruta>");
+        return;
+    };
+    const host = it.next() orelse {
+        fallo("uso: https <ip> <puerto> <host> <ruta>");
+        return;
+    };
+    const ruta = it.next() orelse "/";
+    if (!red.activaRed()) {
+        fallo("red no disponible");
+        return;
+    }
+    const ip = red.parsearIp(ip_txt) orelse {
+        fallo("direccion no valida");
+        return;
+    };
+    var puerto: u32 = 0;
+    for (puerto_txt) |c| {
+        if (c < '0' or c > '9') {
+            fallo("puerto no valido");
+            return;
+        }
+        puerto = puerto * 10 + (c - '0');
+        if (puerto > 65535) {
+            fallo("puerto no valido");
+            return;
+        }
+    }
+    if (puerto == 0) {
+        fallo("puerto no valido");
+        return;
+    }
+    if (!tls.conectar(host, ip, @intCast(puerto))) {
+        salida("https: handshake fallido contra ");
+        salida(host);
+        salida("\n");
+        return;
+    }
+
+    var peticion: [512]u8 = undefined;
+    var n: usize = 0;
+    const anexar = struct {
+        fn f(b: []u8, i: *usize, s: []const u8) void {
+            const l = @min(s.len, b.len - i.*);
+            @memcpy(b[i.*..][0..l], s[0..l]);
+            i.* += l;
+        }
+    }.f;
+    anexar(&peticion, &n, "GET ");
+    anexar(&peticion, &n, ruta);
+    anexar(&peticion, &n, " HTTP/1.1\r\nHost: ");
+    anexar(&peticion, &n, host);
+    anexar(&peticion, &n, "\r\nUser-Agent: AntLexOS\r\nConnection: close\r\n\r\n");
+    if (!tls.enviar(peticion[0..n])) {
+        fallo("no se pudo enviar la peticion");
+        tls.cerrar();
+        return;
+    }
+
+    var total: u32 = 0;
+    var primera: [80]u8 = undefined;
+    var primera_len: usize = 0;
+    var trozo: [1024]u8 = undefined;
+    var vueltas: u8 = 0;
+    while (vueltas < 8) : (vueltas += 1) {
+        const r = tls.recibir(&trozo, 100);
+        if (r > 0) {
+            vueltas = 0;
+            total += @intCast(r);
+            if (primera_len == 0) {
+                for (trozo[0..r]) |c| {
+                    if (c == '\r' or c == '\n') break;
+                    if (primera_len >= primera.len) break;
+                    primera[primera_len] = c;
+                    primera_len += 1;
+                }
+            }
+        } else if (total > 0) break; // close_notify tras los datos
+    }
+    tls.cerrar();
+    salida("https: ");
+    entero(total);
+    salida(" bytes · ");
+    salida(if (primera_len > 0) primera[0..primera_len] else "sin respuesta");
+    salida("\n");
+}
+
+fn cmdRedCa(args: []const u8) void {
+    // red ca <archivo-b64> — ancla una raíz de confianza extra (DER en
+    // base64, leída de ALFS; la usa el arnés para su CA de pruebas)
+    const ruta = std.mem.trim(u8, args, " ");
+    if (ruta.len == 0) {
+        if (tls.raizExtraAnclada()) {
+            ok("raiz extra ya anclada");
+        } else salida("red ca: sin raiz extra (uso: red ca <archivo>)\n");
+        return;
+    }
+    const v = volActual() orelse return;
+    const idx = v.resolverDesde(cwd, ruta) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    const tam = v.tamDe(idx) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    if (tam > 8192) {
+        fallo("archivo demasiado grande (max 8 KiB de base64)");
+        return;
+    }
+    const buf_p = mem.alloc(tam, 16) catch {
+        fallo("sin memoria para leer");
+        return;
+    };
+    const buf: []u8 = @as([*]u8, @ptrFromInt(buf_p))[0..tam];
+    const leidos = v.leer(idx, buf) catch |err| {
+        alfsOError(err);
+        return;
+    };
+    if (tls.anclarRaizBase64(buf[0..leidos])) {
+        serial.puts("red: ca extra anclada\n");
+        ok("raiz de confianza anclada");
+    } else {
+        fallo("no es base64 valido o demasiado corto");
+    }
 }
 
 // ---------------------------------------------------------------------------

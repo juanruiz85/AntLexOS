@@ -27,7 +27,8 @@ FIRMWARE = [
 
 # caracteres seguros con el mapa español: letras, dígitos, espacio, punto,
 # guion y barra se inyectan igual en ES que en US; '=' es shift+0 en ES
-QCODES = {" ": "spc", ".": "dot", "-": "minus", "/": "slash"}
+QCODES = {" ": "spc", ".": "dot", "-": "minus", "/": "slash",
+          "+": "bracketright"}  # '+' ES es set-1 0x1B (qcode bracketright)
 
 PASOS_OK = 0
 PASOS_MAL = 0
