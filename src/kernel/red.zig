@@ -1089,6 +1089,14 @@ pub fn tcpRecibir(buf: []u8, tics: u64) usize {
             std.mem.copyForwards(u8, rx_tcp[0 .. rx_tcp_len - n], rx_tcp[n..rx_tcp_len]);
         }
         rx_tcp_len -= n;
+        // Actualización de ventana: al vaciar rx_tcp hay que avisar al par
+        // de que puede seguir enviando. Sin esto, tras aceptar un búfer
+        // lleno (ACK con ventana 0) el servidor espera un window update
+        // que nunca llega: deadlock con respuestas mayores que rx_tcp
+        // (p.ej. registros TLS de 16 KiB de la tienda).
+        if (tcp_estado == .conectada or tcp_estado == .fin_enviado) {
+            _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+        }
     }
     return n;
 }

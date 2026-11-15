@@ -1646,7 +1646,7 @@ fn cmdTienda(args: []const u8) void {
         if (nombre.len == 0) continue;
         salida("tienda: ");
         salida(nombre);
-        salida(" — ");
+        salida(" - ");
         salida(if (desc.len > 0) desc else "(sin descripcion)");
         salida(" (");
         salida(bytes_txt);
@@ -1846,7 +1846,7 @@ fn cmdHttps(args: []const u8) void {
     var primera_len: usize = 0;
     var trozo: [1024]u8 = undefined;
     var vueltas: u8 = 0;
-    while (vueltas < 8) : (vueltas += 1) {
+    while (vueltas < 25) : (vueltas += 1) {
         const r = tls.recibir(&trozo, 100);
         if (r > 0) {
             vueltas = 0;
@@ -1859,7 +1859,10 @@ fn cmdHttps(args: []const u8) void {
                     primera_len += 1;
                 }
             }
-        } else if (total > 0) break; // close_notify tras los datos
+        }
+        // sin corte por "total>0 y ventana vacía": un registro TLS de 16 KB
+        // puede tardar más de una ventana en descifrarse bajo TCG; el fin
+        // real lo detecta recibir() (close_notify o FIN de la TCP)
     }
     tls.cerrar();
     salida("https: ");

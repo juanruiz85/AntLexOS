@@ -149,6 +149,7 @@ def main():
             break
     cmd += ["-netdev", "user,id=red0",
             "-device", "virtio-net-pci,netdev=red0,disable-legacy=on",
+            "-object", f"filter-dump,id=f0,netdev=red0,file={salida_abs}/dump.pcap",
             "-hda", img_prueba]
 
     log(f"lanzando: {QEMU} -display … (tienda local en 127.0.0.1:{PUERTO})")
@@ -195,7 +196,7 @@ def main():
         # 3) listado
         teclear(qmp, "tienda"); intro(qmp)
         paso("handshake TLS de la tienda", "tls: handshake completo y verificado", ref, serial_path, limite=60.0)
-        paso("entrada CALC del índice", "tienda: CALC — calculadora", ref, serial_path, limite=10.0)
+        paso("entrada CALC del índice", "tienda: CALC - calculadora", ref, serial_path, limite=10.0)
         paso("recuento de aplicaciones", "tienda: 2 aplicaciones", ref, serial_path, limite=10.0)
 
         # 4) descarga + verificación + instalación

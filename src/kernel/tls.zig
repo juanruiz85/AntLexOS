@@ -432,7 +432,7 @@ fn procesarEntrada() bool {
     var trozo: [2048]u8 = undefined;
     while (true) {
         const n = red.tcpRecibir(&trozo, 5);
-        if (n == 0) return estado_tls != .error_;
+        if (n == 0) break;
         if (rx_flujo_len + n > rx_flujo.len) {
             serial.puts("tls: desbordamiento del flujo\n");
             estado_tls = .error_;
@@ -440,6 +440,10 @@ fn procesarEntrada() bool {
         }
         @memcpy(rx_flujo[rx_flujo_len..][0..n], trozo[0..n]);
         rx_flujo_len += n;
+        // Consumir los registros completos YA: con un flujo continuo (el
+        // cuerpo de una descarga en registros de 16 KiB) las lecturas nunca
+        // se cortan solas y sin esto rx_flujo desbordaría sin descifrar.
+        if (!consumirRegistros()) return false;
         if (n < trozo.len) break; // la TCP se queda sin datos por ahora
     }
     return consumirRegistros();
@@ -449,18 +453,29 @@ fn procesarEntrada() bool {
 fn consumirRegistros() bool {
     while (rx_flujo_len >= 5) {
         const tipo = rx_flujo[0];
+        // registro de datos cuya carga no cabe en la entrega: se queda en
+        // el flujo hasta que la capa de arriba drene (no es error: en una
+        // descarga grande llegan varios registros de 16 KiB seguidos)
+        if (tipo == 23) {
+            const l23 = tomas16(&rx_flujo, 3);
+            if (rx_flujo_len >= 5 + l23 and entrega_len + l23 - 17 > entrega.len) return true;
+        }
         if (tipo != 20 and tipo != 21 and tipo != 22 and tipo != 23) {
             serial.puts("tls: tipo de registro inesperado\n");
             estado_tls = .error_;
             return false;
         }
         const lon = tomas16(&rx_flujo, 3);
-        if (lon > REGISTRO_MAX + 16) {
+        // En TLS 1.3 el contenido viaza: tipo(1) + carga + tag(16); un
+        // registro de carga máxima mide 16384+1+16 = 16401 bytes.
+        if (lon > REGISTRO_MAX + 17) {
             serial.puts("tls: registro demasiado grande\n");
             estado_tls = .error_;
             return false;
         }
-        if (rx_flujo_len < 5 + lon) return true; // falta el resto del registro
+        if (rx_flujo_len < 5 + lon) {
+            return true; // falta el resto del registro
+        }
         const reg = rx_flujo[0 .. 5 + lon];
 
         var contenido: []const u8 = reg[5..];
@@ -897,6 +912,13 @@ pub fn recibir(buf: []u8, tics: u64) usize {
         if (fin_notificado or estado_tls != .datos) break;
         if (pit.leerTics() - t0 >= tics) break;
         _ = procesarEntrada();
+        // FIN de TCP sin close_notify (Python y otros cierran así): si no
+        // queda nada pendiente por descifrar ni entregar, se acabaron los
+        // datos de la sesión.
+        if (entrega_len == 0 and rx_flujo_len == 0 and red.tcpFinRecibido()) {
+            fin_notificado = true;
+            break;
+        }
     }
     const n = @min(entrega_len, buf.len);
     if (n > 0) {
@@ -936,11 +958,14 @@ pub fn pedir(host: []const u8, ip: [4]u8, puerto: u16, ruta: []const u8, buf: []
     anexar(&peticion, &n, "\r\nUser-Agent: AntLexOS\r\nConnection: close\r\n\r\n");
     if (!enviar(peticion[0..n])) return null;
 
-    // recibir toda la respuesta que quepa en el buf
+    // recibir toda la respuesta que quepa en el buf. El fin real lo
+    // detecta recibir() (close_notify o FIN de TCP con búferes vacíos);
+    // las 25 vueltas de 1 s son el margen para registros TLS de 16 KB
+    // reensamblándose y descifrándose bajo emulación (TCG).
     var total: usize = 0;
     var vueltas: u8 = 0;
-    while (vueltas < 12) : (vueltas += 1) {
-        const r = recibir(buf[total..], 100); // 1 s por intento
+    while (vueltas < 25) : (vueltas += 1) {
+        const r = recibir(buf[total..], 100);
         if (r > 0) {
             vueltas = 0; // con datos seguimos esperando el resto
             total += r;

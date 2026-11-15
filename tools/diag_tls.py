@@ -41,7 +41,7 @@ def main():
                        check=True, capture_output=True)
 
     os.makedirs(f"{D}/www", exist_ok=True)
-    open(f"{D}/www/x.txt", "wb").write(b"X" * 1024)
+    open(f"{D}/www/x.txt", "wb").write(b"X" * 56384)  # como CALC.ALX
 
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 8443),
                                           lambda *a, **kw: http.server.SimpleHTTPRequestHandler(*a, directory=f"{D}/www", **kw))
@@ -63,9 +63,26 @@ def main():
         time.sleep(0.2)
     time.sleep(12)
     qmp = Qmp(f"{D}/qmp.sock")
+
+    # anclar la CA (mismo flujo que el arnés)
+    subprocess.run(["openssl", "x509", "-in", f"{D}/ca.crt", "-outform", "DER",
+                    "-out", f"{D}/ca.der"], check=True, capture_output=True)
+    import base64
+    b64 = base64.b64encode(open(f"{D}/ca.der", "rb").read()).decode()
+    trozos = [b64[i:i + 96] for i in range(0, len(b64), 96)]
+    teclear(qmp, "limpiar"); intro(qmp); time.sleep(0.4)
+    teclear(qmp, f"escribir /ca.b64 {trozos[0]}"); intro(qmp); time.sleep(0.6)
+    for i, t in enumerate(trozos[1:]):
+        if i % 4 == 3:
+            teclear(qmp, "limpiar"); intro(qmp); time.sleep(0.4)
+        teclear(qmp, f"anexar /ca.b64 {t}"); intro(qmp)
+        time.sleep(0.2)
+    teclear(qmp, "red ca /ca.b64"); intro(qmp)
+    time.sleep(1)
+
     teclear(qmp, "https 10.0.2.2 8443 antlex.test /x.txt")
     intro(qmp)
-    time.sleep(25)
+    time.sleep(30)
     proc.kill()
 
     print("=== serial ===")
