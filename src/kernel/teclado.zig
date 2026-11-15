@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const x86 = @import("x86.zig");
+const serial = @import("serial.zig");
 
 // Códigos internos para teclas especiales (fuera de ASCII/Latin-1)
 pub const FLECHA_IZQ: u8 = 0x80;
@@ -34,7 +35,11 @@ var ctrl: bool = false;
 var alt: bool = false;
 var extendido: bool = false;
 
-const TAM_BUF = 64;
+// 256 teclas: con el eco gráfico de la consola en QEMU (TCG) el drenado
+// puede ir por detrás del tecleo rápido (arneses a 45 ms/tecla) y con 64
+// se perdían caracteres enteros de líneas largas (base64 de la CA con
+// red ca); 256 da margen de sobra.
+const TAM_BUF = 256;
 var buffer: [TAM_BUF]u8 = undefined;
 // volatile: los modifica la IRQ1 y los lee el hilo principal
 var leido: usize = 0; // volatile
@@ -180,6 +185,7 @@ fn empujar(c: u8) void {
     const sig = (esc + 1) % TAM_BUF;
     if (sig == lei) {
         desbordamientos += 1;
+        serial.putc('!'); // tecla perdida en el anillo (diagnóstico)
         return;
     }
     buffer[esc] = c;

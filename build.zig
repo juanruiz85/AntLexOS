@@ -179,6 +179,9 @@ pub fn build(b: *std.Build) void {
         correr_mkalfs.addFileArg(alx);
         correr_mkalfs.addArg(b.fmt("{s}.ALX", .{app.nombre}));
         correr_mkalfs.step.dependOn(&correr_mkalx.step);
+        // y también a zig-out/apps/ (la tienda y los arneses los usan)
+        const inst_alx = b.addInstallFile(alx, b.fmt("apps/{s}.ALX", .{app.nombre}));
+        b.getInstallStep().dependOn(&inst_alx.step);
     }
 
     const inst_img = b.addInstallFile(img, "antlexos.img");

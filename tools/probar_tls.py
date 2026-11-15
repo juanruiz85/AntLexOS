@@ -91,9 +91,13 @@ class Servidor(threading.Thread):
 
     def __init__(self, raiz, d):
         super().__init__()
+
+        class Handler(http.server.SimpleHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"  # GitHub habla 1.1, no 1.0
+
         self.httpd = http.server.ThreadingHTTPServer(
             ("127.0.0.1", PUERTO),
-            lambda *a, **kw: http.server.SimpleHTTPRequestHandler(*a, directory=raiz, **kw))
+            lambda *a, **kw: Handler(*a, directory=raiz, **kw))
         ctx = ssl_mod.SSLContext(ssl_mod.PROTOCOL_TLS_SERVER)
         ctx.minimum_version = ssl_mod.TLSVersion.TLSv1_3
         # sin set_ciphersuites (no está en este Python): el cliente solo
@@ -144,11 +148,14 @@ def main():
             ts.sendall(f"GET /tls.txt HTTP/1.1\r\nHost: {HOST}\r\n"
                        "User-Agent: AntLexOS\r\nConnection: close\r\n\r\n".encode())
             esperado = b""
-            while True:
-                trozo = ts.recv(4096)
-                if not trozo:
-                    break
-                esperado += trozo
+            try:
+                while True:
+                    trozo = ts.recv(4096)
+                    if not trozo:
+                        break
+                    esperado += trozo
+            except (ssl_mod.SSLError, OSError):
+                pass  # SimpleHTTPRequestHandler cierra sin close_notify
     log(f"respuesta esperada: {len(esperado)} bytes")
 
     cmd = [QEMU, "-display", "none", "-serial", f"file:{serial_path}",
@@ -190,12 +197,22 @@ def main():
 
         # 2) escribir la CA en el ALFS por la consola (trozos de 96) y anclarla
         trozos = [b64[i:i + 96] for i in range(0, len(b64), 96)]
+        # limpiar cada 4 trozos: con la pantalla llena cada tecla dispara un
+        # scroll completo de la rejilla y QEMU (TCG) pierde teclas de la
+        # cola PS/2; tecleando cerca de la primera fila no hay scroll.
         log(f"escribiendo /ca.b64 en {len(trozos)} trozos…")
+        teclear(qmp, "limpiar"); intro(qmp); time.sleep(0.4)
         teclear(qmp, f"escribir /ca.b64 {trozos[0]}"); intro(qmp)
         paso("primer trozo de la CA", "creado /ca.b64", ref, serial_path, limite=30.0)
         for i, t in enumerate(trozos[1:], start=2):
+            if i % 4 == 1:
+                teclear(qmp, "limpiar"); intro(qmp); time.sleep(0.4)
             teclear(qmp, f"anexar /ca.b64 {t}"); intro(qmp)
-            time.sleep(0.15)
+            time.sleep(0.2)
+        # verificar el tamaño ANTES de anclar: si faltan caracteres el DER
+        # queda corrupto y el fallo posterior sería muy confuso
+        teclear(qmp, "atributos /ca.b64"); intro(qmp)
+        paso("CA completa en disco", f"/ca.b64: archivo, {len(b64)} bytes", ref, serial_path, limite=15.0)
         teclear(qmp, "red ca /ca.b64"); intro(qmp)
         paso("CA de pruebas anclada (red ca)", "red: ca extra anclada", ref, serial_path, limite=30.0)
 

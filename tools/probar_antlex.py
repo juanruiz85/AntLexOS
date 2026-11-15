@@ -28,7 +28,7 @@ FIRMWARE = [
 # caracteres seguros con el mapa español: letras, dígitos, espacio, punto,
 # guion y barra se inyectan igual en ES que en US; '=' es shift+0 en ES
 QCODES = {" ": "spc", ".": "dot", "-": "minus", "/": "slash",
-          "+": "bracketright"}  # '+' ES es set-1 0x1B (qcode bracketright)
+          "+": "bracket_right"}  # '+' ES: set-1 0x1B base (qcode bracket_right)
 
 PASOS_OK = 0
 PASOS_MAL = 0
@@ -70,26 +70,41 @@ class Qmp:
         self.s.sendall(json.dumps(p).encode() + b"\n")
         return self._leer_objeto()
 
-    def tecla(self, qcode):
-        self.cmd("send-key", {
-            "keys": [{"type": "qcode", "data": qcode}],
-            "hold-time": 30,
-        })
+    def _ev(self, qcode, down):
+        return {"type": "key", "data": {"down": down,
+                "key": {"type": "qcode", "data": qcode}}}
+
+    def tecla(self, qcode, shift=False):
+        """Pulsación completa (down+up) en UN input-send-event: send-key
+        con combos dejaba el shift enganchado al solaparse con la tecla
+        siguiente, y el resto de la línea llegaba en mayúsculas."""
+        ev = [self._ev("shift", True)] if shift else []
+        ev += [self._ev(qcode, True), self._ev(qcode, False)]
+        if shift:
+            ev.append(self._ev("shift", False))
+        self.cmd("input-send-event", {"events": ev})
 
     def combo(self, qcodes):
-        self.cmd("send-key", {
-            "keys": [{"type": "qcode", "data": q} for q in qcodes],
-            "hold-time": 30,
-        })
+        """Compatibilidad: pulsa y suelta el conjunto (p.ej. shift+7)."""
+        ev = [self._ev(q, True) for q in qcodes]
+        ev += [self._ev(q, False) for q in reversed(qcodes)]
+        self.cmd("input-send-event", {"events": ev})
 
     def cerrar(self):
         self.s.close()
 
 
 def teclear(qmp, texto, pausa=0.045):
+    """teclea con mapa español: mayúsculas → shift+letra, '/' → shift+7,
+    '+' → bracket_right (set-1 0x1B base es '+' en ES). Sin esto, el
+    base64 de las CA perdía silenciosamente todas las mayúsculas."""
     for c in texto:
         if c == "/":  # en el mapa español la barra es shift+7
-            qmp.combo(["shift", "7"])
+            qmp.tecla("7", shift=True)
+            time.sleep(pausa)
+            continue
+        if "A" <= c <= "Z":  # mayúscula: los qcodes de QMP son minúsculas
+            qmp.tecla(c.lower(), shift=True)
             time.sleep(pausa)
             continue
         q = QCODES.get(c, c)

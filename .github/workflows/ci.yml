@@ -84,6 +84,16 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_tcp.py zig-out/antlexos.img build/pruebas_tcp --tiempo 240
 
+      - name: TLS 1.3 contra servidor local (Fase 9b)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_tls.py zig-out/antlexos.img build/pruebas_tls --tiempo 300
+
+      - name: Tienda sobre TLS local (Fase 9b)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_descargar.py zig-out/antlexos.img build/pruebas_descargar --tiempo 300
+
       - name: ISO en BIOS (El Torito, Fase 6)
         env:
           TC: /noexiste
@@ -117,6 +127,8 @@ jobs:
             build/pruebas_escritorio/serial_final.log
             build/pruebas_red/serial_final.log
             build/pruebas_tcp/serial_final.log
+            build/pruebas_tls/serial_final.log
+            build/pruebas_descargar/serial_final.log
             build/iso_bios/escritorio-bios-cd.png
             build/iso_uefi/escritorio-uefi-cd.png
           if-no-files-found: error

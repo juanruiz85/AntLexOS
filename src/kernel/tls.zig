@@ -93,7 +93,7 @@ fn epochAhora() i64 {
 }
 
 /// Entropía débil pero honesta: mezcla de reloj RTC, tics del PIT,
-/// milisegundos de arranque y la dirección del propio búfer. En las
+/// milisegundos de arranque y la dirección del propio buf. En las
 /// pruebas del host no hay RTC/PIT (serían instrucciones privilegiadas):
 /// patrón fijo, solo para que la estructura sea comprobable.
 fn entropia(destino: []u8) void {
@@ -181,7 +181,7 @@ fn hashDe(h: *const Sha256) [32]u8 {
 }
 
 // ---------------------------------------------------------------------------
-// búferes de recepción (flujo TCP → registros → mensajes / datos)
+// bufes de recepción (flujo TCP → registros → mensajes / datos)
 // ---------------------------------------------------------------------------
 
 var rx_flujo: [REGISTRO_MAX + 2100]u8 = undefined;
@@ -426,7 +426,7 @@ fn descifrarRegistro(reg: []const u8) ?struct { tipo: u8, n: usize } {
 // procesado del flujo TCP
 // ---------------------------------------------------------------------------
 
-/// Tira de la TCP hacia el búfer de flujo y procesa los registros
+/// Tira de la TCP hacia el buf de flujo y procesa los registros
 /// completos. Devuelve false solo en error fatal de TLS.
 fn procesarEntrada() bool {
     var trozo: [2048]u8 = undefined;
@@ -445,7 +445,7 @@ fn procesarEntrada() bool {
     return consumirRegistros();
 }
 
-/// Procesa todos los registros completos del búfer de flujo.
+/// Procesa todos los registros completos del buf de flujo.
 fn consumirRegistros() bool {
     while (rx_flujo_len >= 5) {
         const tipo = rx_flujo[0];
@@ -505,7 +505,7 @@ fn procesarContenido(tipo: u8, contenido: []const u8) bool {
         22 => return procesarHandshake(contenido),
         23 => { // datos de aplicación
             if (entrega_len + contenido.len > entrega.len) {
-                serial.puts("tls: búfer de entrega lleno\n");
+                serial.puts("tls: buf de entrega lleno\n");
                 estado_tls = .error_;
                 return false;
             }
@@ -542,7 +542,7 @@ fn procesarHandshake(contenido: []const u8) bool {
 var certs_der: [4][]const u8 = .{ undefined, undefined, undefined, undefined };
 var certs_num: usize = 0;
 // los slices no pueden quedarse apuntando a `claro` (el registro siguiente
-// lo descifra encima): la cadena se copia a este búfer estable
+// lo descifra encima): la cadena se copia a este buf estable
 var certs_buf: [6144]u8 = undefined;
 var certs_buf_len: usize = 0;
 
@@ -556,7 +556,7 @@ fn despacharMensaje(msj: []const u8) bool {
         },
         11 => return procesarCertificate(msj),
         15 => return procesarCertificateVerify(msj),
-        14 => return procesarFinishedServidor(msj),
+        20 => return procesarFinishedServidor(msj), // finished = 0x14
         else => {}, // desconocido: ignorar (la transcripción ya no importa)
     }
     return true;
@@ -677,11 +677,15 @@ fn procesarCertificateVerify(msj: []const u8) bool {
     // el mensaje Certificate (el CV aún no está en la transcripción)
     const h_cert = hashDe(&trans);
     const contexto = "TLS 1.3, server CertificateVerify";
-    var contenido_firmado: [96]u8 = undefined;
-    @memcpy(contenido_firmado[0..contexto.len], contexto);
-    contenido_firmado[contexto.len] = 0;
-    @memcpy(contenido_firmado[contexto.len + 1 ..][0..32], &h_cert);
-    const lon_firmado = contexto.len + 1 + 32;
+    // contenido firmado (RFC 8446 §4.4.3): 64 bytes 0x20 (espacio) +
+    // cadena de contexto + un byte 0 separador + hash de la transcripción.
+    // Los 64 espacios son los que faltaban.
+    var contenido_firmado: [64 + 34 + 32]u8 = undefined;
+    @memset(contenido_firmado[0..64], 0x20);
+    @memcpy(contenido_firmado[64..][0..contexto.len], contexto);
+    contenido_firmado[64 + contexto.len] = 0;
+    @memcpy(contenido_firmado[64 + contexto.len + 1 ..][0..32], &h_cert);
+    const lon_firmado = 64 + contexto.len + 1 + 32;
 
     // clave pública RSA-2048 de la hoja
     const hoja = Certificado{ .buffer = certs_der[0], .index = 0 };
@@ -750,7 +754,12 @@ fn procesarFinishedServidor(msj: []const u8) bool {
 
 fn tryVerificarConRaiz(ultima: Certificado, raiz_der: []const u8, ahora: i64) bool {
     const raiz = Certificado{ .buffer = raiz_der, .index = 0 };
-    Certificado.verify(ultima, raiz, ahora) catch return false;
+    Certificado.verify(ultima, raiz, ahora) catch |e| {
+        serial.puts("tls: verificacion con raiz: ");
+        serial.puts(@errorName(e));
+        serial.puts("\n");
+        return false;
+    };
     return true;
 }
 
@@ -777,6 +786,11 @@ fn verificarCadena(host: []const u8, ahora: i64) bool {
             return false;
         };
     }
+    serial.puts("tls: cadena con ");
+    serial.putDec(certs_num);
+    serial.puts(" cert(s), epoch=");
+    serial.putDec(@as(u32, @intCast(ahora)));
+    serial.puts("\n");
     const ultima = Certificado{ .buffer = certs_der[certs_num - 1], .index = 0 };
     if (tryVerificarConRaiz(ultima, RAIZ_ISRG_X1, ahora)) return true;
     if (raiz_extra_len > 0 and tryVerificarConRaiz(ultima, raiz_extra[0..raiz_extra_len], ahora)) return true;
@@ -844,7 +858,7 @@ pub fn conectar(host: []const u8, ip: [4]u8, puerto: u16) bool {
             var vd: [32]u8 = undefined;
             HmacSha256.create(&vd, &hashDe(&trans), &fk_c);
             var fin_msj: [36]u8 = undefined;
-            fin_msj[0] = 14;
+            fin_msj[0] = 20; // finished = 0x14
             pones24(&fin_msj, 1, 32);
             @memcpy(fin_msj[4..36], &vd);
             if (!enviarRegistro(22, &fin_msj, true)) {
@@ -893,6 +907,66 @@ pub fn recibir(buf: []u8, tics: u64) usize {
         entrega_len -= n;
     }
     return n;
+}
+
+/// Respuesta de pedir(): código de estado HTTP y el cuerpo (un slice
+/// DENTRO del buf del llamador, tras las cabeceras).
+pub const Respuesta = struct { estado: u16, cuerpo: []const u8 };
+
+/// GET HTTP/1.1 sobre TLS 1.3 contra host/ip:puerto. Recibe la respuesta
+/// completa (cabeceras incluidas) en `buf` y devuelve el estado y el
+/// cuerpo ya recortado. Una sola petición por conexión (Connection: close).
+pub fn pedir(host: []const u8, ip: [4]u8, puerto: u16, ruta: []const u8, buf: []u8) ?Respuesta {
+    if (!conectar(host, ip, puerto)) return null;
+    defer cerrar();
+
+    var peticion: [512]u8 = undefined;
+    var n: usize = 0;
+    const anexar = struct {
+        fn f(b: []u8, i: *usize, t: []const u8) void {
+            const l = @min(t.len, b.len - i.*);
+            @memcpy(b[i.*..][0..l], t[0..l]);
+            i.* += l;
+        }
+    }.f;
+    anexar(&peticion, &n, "GET ");
+    anexar(&peticion, &n, ruta);
+    anexar(&peticion, &n, " HTTP/1.1\r\nHost: ");
+    anexar(&peticion, &n, host);
+    anexar(&peticion, &n, "\r\nUser-Agent: AntLexOS\r\nConnection: close\r\n\r\n");
+    if (!enviar(peticion[0..n])) return null;
+
+    // recibir toda la respuesta que quepa en el buf
+    var total: usize = 0;
+    var vueltas: u8 = 0;
+    while (vueltas < 12) : (vueltas += 1) {
+        const r = recibir(buf[total..], 100); // 1 s por intento
+        if (r > 0) {
+            vueltas = 0; // con datos seguimos esperando el resto
+            total += r;
+            if (total == buf.len) break;
+        } else if (fin_notificado or estado_tls != .datos) break;
+    }
+    if (total < 12) return null; // ni línea de estado
+
+    // estado: "HTTP/1.x NNN ..."
+    var codigo: u16 = 0;
+    var i: usize = 0;
+    while (i < total and buf[i] != ' ') i += 1;
+    i += 1;
+    while (i + 1 < total and buf[i] >= '0' and buf[i] <= '9') : (i += 1) {
+        codigo = codigo * 10 + (buf[i] - '0');
+    }
+    // separador de cabeceras
+    var cuerpo_ini: usize = total;
+    var j: usize = 0;
+    while (j + 3 < total) : (j += 1) {
+        if (buf[j] == '\r' and buf[j + 1] == '\n' and buf[j + 2] == '\r' and buf[j + 3] == '\n') {
+            cuerpo_ini = j + 4;
+            break;
+        }
+    }
+    return .{ .estado = codigo, .cuerpo = buf[cuerpo_ini..total] };
 }
 
 /// Cierre limpio: close_notify cifrado + FIN de la TCP.
