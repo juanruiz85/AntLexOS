@@ -72,10 +72,10 @@ def teclear_mas(qmp, texto):
             qmp.tecla("bracket_right")
             time.sleep(0.05)
         elif c == "=":
-            qmp.combo(["shift", "0"])
+            qmp.tecla("0", shift=True)  # '=' es shift+0 en ES
             time.sleep(0.05)
         elif c == "*":
-            qmp.combo(["shift", "bracket_right"])
+            qmp.tecla("bracket_right", shift=True)  # '*' es shift++ en ES
             time.sleep(0.05)
         else:
             teclear(qmp, c)

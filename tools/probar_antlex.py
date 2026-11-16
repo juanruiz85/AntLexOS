@@ -75,14 +75,19 @@ class Qmp:
                 "key": {"type": "qcode", "data": qcode}}}
 
     def tecla(self, qcode, shift=False):
-        """Pulsación completa (down+up) en UN input-send-event: send-key
-        con combos dejaba el shift enganchado al solaparse con la tecla
-        siguiente, y el resto de la línea llegaba en mayúsculas."""
-        ev = [self._ev("shift", True)] if shift else []
-        ev += [self._ev(qcode, True), self._ev(qcode, False)]
+        """Pulsación completa por send-key — MISMO mecanismo que combo
+        en todas partes: la mezcla con input-send-event perdía teclas en
+        el QEMU de los runners de CI (v1.4.0: «5 * 2» nunca llegó). Con
+        shift se espera un margen para que la liberación del hold-time
+        aterrice antes de la tecla siguiente (si no, el shift se pegaba
+        y la siguiente salía en mayúsculas)."""
+        self.cmd("send-key", {
+            "keys": ([{"type": "qcode", "data": "shift"}] if shift else [])
+            + [{"type": "qcode", "data": qcode}],
+            "hold-time": 30,
+        })
         if shift:
-            ev.append(self._ev("shift", False))
-        self.cmd("input-send-event", {"events": ev})
+            time.sleep(0.075)
 
     def combo(self, qcodes):
         """Pulsa el conjunto a la vez y lo suelta (alt+tab, alt+f4...).
@@ -94,6 +99,7 @@ class Qmp:
             "keys": [{"type": "qcode", "data": q} for q in qcodes],
             "hold-time": 30,
         })
+        time.sleep(0.075)
 
     def cerrar(self):
         self.s.close()
