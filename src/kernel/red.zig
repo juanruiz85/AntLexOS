@@ -783,17 +783,28 @@ pub const EstadisticaPing = struct {
     fallo: ?[]const u8 = null, // "red no disponible" | "arp sin respuesta"
 };
 
+/// Siguiente salto de una IP: la propia si está en nuestra subred
+/// (10.0.2.0/24 con máscara fija) y la puerta de enlace (10.0.2.2) si
+/// no. Sin esto, el ARP de una IP externa no lo responde nadie (slirp
+/// solo contesta por su red virtual) y no hay salida a internet.
+fn siguienteSalto(ip: [4]u8) [4]u8 {
+    if (ip[0] == IP_NUESTRA[0] and ip[1] == IP_NUESTRA[1] and ip[2] == IP_NUESTRA[2])
+        return ip;
+    return IP_PUERTA;
+}
+
 fn resolverArp(ip: [4]u8) bool {
-    if (arp_valida and std.mem.eql(u8, &arp_ip, &ip)) return true;
+    const salto = siguienteSalto(ip);
+    if (arp_valida and std.mem.eql(u8, &arp_ip, &salto)) return true;
     var intento: u8 = 0;
     while (intento < 3) : (intento += 1) {
         var carga: [28]u8 = undefined;
-        _ = armarPayloadArp(&carga, 1, mac, IP_NUESTRA, .{ 0, 0, 0, 0, 0, 0 }, ip);
+        _ = armarPayloadArp(&carga, 1, mac, IP_NUESTRA, .{ 0, 0, 0, 0, 0, 0 }, salto);
         if (!enviarTrama(MAC_DIFUSION, ETH_ARP, &carga)) return false;
         const t0 = pit.leerTics();
         while (pit.leerTics() - t0 < 30) { // 300 ms por intento
             procesar();
-            if (arp_valida and std.mem.eql(u8, &arp_ip, &ip)) return true;
+            if (arp_valida and std.mem.eql(u8, &arp_ip, &salto)) return true;
         }
     }
     return false;
