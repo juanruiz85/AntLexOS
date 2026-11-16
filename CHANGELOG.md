@@ -1,6 +1,49 @@
-## [v1.4.0-dev] - Sin publicar
+## [v1.4.0] - 2026-11-16
 
-### Fase 9 (en curso): red, `descargar` y tienda de aplicaciones
+### Fase 9b: TCP, TLS 1.3 propio y tienda de aplicaciones real
+
+- **Carga del kernel por rondas** (stage2): el staging en modo real solo
+  tiene 512 KiB; `copiar_pm` hace excursiones a modo protegido que VUELVEN
+  a real para seguir leyendo con int 13h (GDT con descriptores de 16 bits).
+  Límites: 2,5 MiB de archivo y 3 MiB de archivo+bss — el kernel ya pasa
+  de 1 MiB con bss de ~380 KiB
+- **Cliente TCP completo** (`red.zig`): máquina de estados mínima con
+  retransmisión del SYN, ventana de recepción real en cada segmento,
+  **aceptación parcial honesta** (antes el ACK avanzaba por bytes que no
+  cupieron en el búfer y la aplicación perdía datos) y actualización de
+  ventana al drenar (sin ella, un ACK con ventana 0 dejaba al servidor
+  esperando para siempre: deadlock con respuestas grandes)
+- **Enrutado por puerta de enlace**: `siguienteSalto` resuelve el ARP del
+  gateway para IPs fuera de 10.0.2.0/24 (slirp no contesta ARPs de IPs
+  externas) — con esto el sistema tiene salida a internet real
+- **Cliente TLS 1.3 propio** (`tls.zig`, ~1000 líneas): X25519 + HKDF
+  (etiquetas del RFC 8448 verificadas con vectores), AES-128-GCM con
+  rotación de claves por dirección, reensamblado de mensajes, verificación
+  de la cadena X.509 contra la **ISRG Root X1 embebida** + raíz extra
+  anclable con `red ca`, RSA-PSS del CertificateVerify (con los 64 bytes
+  0x20 del RFC 8446 §4.4.3) y Finished del servidor validado. Hoy GitHub
+  sirve `*.github.io ← YR1 ← Root YR ← X1` (cross-firmada) y el kernel la
+  verifica tal cual
+- **Tienda de aplicaciones**: comandos `tienda` (listado del INDICE),
+  `descargar <app>` (GET sobre TLS del .ALX, verificación de SHA-256,
+  instalación en /APPS con bit de ejecutable y sustitución de versiones
+  ya instaladas) y `red tienda [ip puerto host]` (objetivo editable).
+  Repo real: `juanruiz85/AntLexApps` con CALC y RELOJ
+- **Teclado**: cola de 256 teclas (con 64 se perdían caracteres en líneas
+  largas bajo TCG)
+- **Pruebas**: 71/71 host (vectores RFC 8448, TCP, TLS) · arneses nuevos
+  `probar_tcp.py` (9/9), `probar_tls.py` (10/10: pinning negativo, CA
+  anclada por consola, handshake completo, GET de 1148 B exactos) y
+  `probar_descargar.py` (15/15: tienda local con CA de prueba) ·
+  **e2e real `probar_e2e_tienda.py` 10/10 contra raw.githubusercontent.com**
+  (handshake, INDICE, descarga de 52 KiB, sha256 e instalación)
+- **Depuración registrada** en PRUEBAS.md (P-0098 a P-0101): teclado QMP
+  (mayúsculas = shift+letra, '+' = bracket_right, pulsaciones atómicas con
+  `input-send-event` porque `send-key` dejaba el shift enganchado),
+  registros TLS de 16 KiB (entrega de 16385, rx_flujo de 4 registros) y
+  el hex del SHA-256 a mano (el `{x}` de arrays antepone 0x por elemento)
+
+### Fase 9 (v1.4.0-dev): red propia con virtio-net 1.0
 
 - **Driver virtio-net 1.0 propio** (`src/kernel/red.zig`): escaneo PCI,
   capabilities modernas (common/notify/device cfg por MMIO), negociación
