@@ -79,6 +79,11 @@ jobs:
           TC: /noexiste
         run: python3 tools/probar_red.py zig-out/antlexos.img build/pruebas_red --tiempo 240
 
+      - name: DHCP automático (Fase 9c — concesión y tienda real)
+        env:
+          TC: /noexiste
+        run: python3 tools/probar_dhcp.py zig-out/antlexos.img build/pruebas_dhcp --tiempo 240
+
       - name: TCP contra servidor HTTP local (Fase 9b)
         env:
           TC: /noexiste

@@ -1378,9 +1378,14 @@ fn cmdRed(args: []const u8) void {
     salida("virtio-net 1.0 — MAC ");
     salida(red.formatearMac(red.macNuestra(), &b));
     salida("\nIP ");
-    salida(red.formatearIp(red.IP_NUESTRA, &b));
+    salida(red.formatearIp(red.ip_nuestra, &b));
+    salida(if (red.red_por_dhcp) " (dhcp)" else " (estatica)");
+    salida(" · mascara ");
+    salida(red.formatearIp(red.mascara_red, &b));
     salida(" · puerta ");
-    salida(red.formatearIp(red.IP_PUERTA, &b));
+    salida(red.formatearIp(red.ip_puerta, &b));
+    salida(" · dns ");
+    salida(red.formatearIp(red.ip_dns, &b));
     salida("\n");
     if (red.cacheArp()) |c| {
         salida("ARP ");

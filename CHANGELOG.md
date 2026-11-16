@@ -1,3 +1,27 @@
+## [v1.4.1] - 2026-11-16
+
+### Fase 9c: DHCP automático y red activa en los portables
+
+- **Cliente DHCP propio** (`red.zig`): capa UDP (puertos 68→67, checksum
+  0 válido en IPv4) y negociación DISCOVER→OFFER→REQUEST→ACK por difusión
+  (RFC 2131, con el bit BROADCAST y xid por transacción). La concesión se
+  aplica en el arranque: IP, máscara, puerta y DNS dejan de ser constantes
+  y `siguienteSalto` pasa a decidir por la máscara real de la concesión.
+  Sin respuesta (4 rondas de ~800 ms) queda la configuración estática de
+  respaldo de slirp (10.0.2.15/24)
+- **`red` renovado**: muestra IP con su origen («(dhcp)» o «(estatica)»),
+  máscara, puerta y DNS de la configuración viva
+- **Portables con red de usuario activa por defecto**: los lanzadores
+  (lanzar.sh, lanzar-uefi.sh, lanzar.bat, lanzar-uefi.bat) arrancan QEMU
+  con `-netdev user` + virtio-net moderno; con el DHCP de slirp el sistema
+  sale a internet sin tocar nada (la tienda contra GitHub funciona con
+  doble clic)
+- **Pruebas**: arnés `probar_dhcp.py` 13/13 — concesión en el arranque
+  (10.0.2.15, puerta 10.0.2.2, DNS 10.0.2.3), configuración viva en `red`,
+  ping sobre IP dinámica y TIENDA REAL sobre TLS con la concesión DHCP.
+  Añadido a CI, release y batería local. Regresión: red 12/12, TCP 9/9,
+  TLS 10/10, tienda 15/15
+
 ## [v1.4.0] - 2026-11-16
 
 ### Fase 9b: TCP, TLS 1.3 propio y tienda de aplicaciones real

@@ -28,6 +28,7 @@ run "AntLex IA"  python3 tools/probar_antlex.py zig-out/antlexos.img build/prueb
 run "ALX"        python3 tools/probar_alx.py zig-out/antlexos.img build/pruebas_alx --tiempo 120
 run "escritorio" python3 tools/probar_escritorio.py zig-out/antlexos.img build/pruebas_escritorio --tiempo 300
 run "red"        python3 tools/probar_red.py zig-out/antlexos.img build/pruebas_red --tiempo 240
+run "DHCP"       python3 tools/probar_dhcp.py zig-out/antlexos.img build/pruebas_dhcp --tiempo 240
 run "TCP"        python3 tools/probar_tcp.py zig-out/antlexos.img build/pruebas_tcp --tiempo 240
 run "TLS"        python3 tools/probar_tls.py zig-out/antlexos.img build/pruebas_tls --tiempo 300
 run "descargar"  python3 tools/probar_descargar.py zig-out/antlexos.img build/pruebas_descargar --tiempo 300

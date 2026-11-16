@@ -71,6 +71,7 @@ Descarga este ZIP, descomprímelo y ejecuta el lanzador: no hay que
 instalar nada (QEMU va incluido).
 
   Windows:  doble clic en lanzar.bat      (o lanzar-uefi.bat para UEFI)
+  (red de usuario activa por defecto: DHCP automatico en el arranque)
   Linux:    ./lanzar.sh                   (o ./lanzar-uefi.sh)
 
 Verás el escritorio con el terminal a la izquierda, el chat de AntLex a
@@ -99,8 +100,8 @@ if [ ! -f "$SALIDA/antlexos-portable-linux-x86_64.zip" ]; then
     cp "$FW"/*.bin "$FW"/*.rom "$FW"/*.fd "$LIN/fw/"
 
     cp "$IMG" "$ISO" "$LIN/"
-    printf '#!/bin/sh\n# AntLex OS portable — arranque BIOS\ncd "$(dirname "$0")"\nexec ./qemu/qemu-system-x86_64 -m 512 -vga std -drive format=raw,file=antlexos.img "$@"\n' > "$LIN/lanzar.sh"
-    printf '#!/bin/sh\n# AntLex OS portable — arranque UEFI (OVMF)\ncd "$(dirname "$0")"\n[ -f ovmf-vars.fd ] || cp fw/OVMF_VARS_4M.fd ovmf-vars.fd\nexec ./qemu/qemu-system-x86_64 -m 512 -vga std -drive format=raw,file=antlexos.img \\\n  -drive if=pflash,format=raw,file=fw/OVMF_CODE_4M.fd,readonly=on \\\n  -drive if=pflash,format=raw,file=ovmf-vars.fd "$@"\n' > "$LIN/lanzar-uefi.sh"
+    printf '#!/bin/sh\n# AntLex OS portable — arranque BIOS\ncd "$(dirname "$0")"\nexec ./qemu/qemu-system-x86_64 -m 512 -vga std -drive format=raw,file=antlexos.img -netdev user,id=red0 -device virtio-net-pci,netdev=red0,disable-legacy=on "$@"\n' > "$LIN/lanzar.sh"
+    printf '#!/bin/sh\n# AntLex OS portable — arranque UEFI (OVMF)\ncd "$(dirname "$0")"\n[ -f ovmf-vars.fd ] || cp fw/OVMF_VARS_4M.fd ovmf-vars.fd\nexec ./qemu/qemu-system-x86_64 -m 512 -vga std -drive format=raw,file=antlexos.img \\\n  -drive if=pflash,format=raw,file=fw/OVMF_CODE_4M.fd,readonly=on \\\n  -drive if=pflash,format=raw,file=ovmf-vars.fd -netdev user,id=red0 -device virtio-net-pci,netdev=red0,disable-legacy=on "$@"\n' > "$LIN/lanzar-uefi.sh"
     chmod +x "$LIN/lanzar.sh" "$LIN/lanzar-uefi.sh"
     printf '%s\n' "$LEEME_PORTABLE" > "$LIN/LEEME-PORTABLE.txt"
 
@@ -138,8 +139,8 @@ if [ ! -f "$SALIDA/antlexos-portable-windows-x86_64.zip" ]; then
     cp "$FW"/*.bin "$FW"/*.rom "$FW"/*.fd "$WIN/fw/"
 
     cp "$IMG" "$ISO" "$WIN/"
-    printf '@echo off\r\nrem AntLex OS portable - arranque BIOS\r\nset "DIR=%%~dp0"\r\n"%%DIR%%qemu\\qemu-system-x86_64.exe" -L "%%DIR%%fw" -m 512 -vga std -drive format=raw,file="%%DIR%%antlexos.img" %%*\r\n' > "$WIN/lanzar.bat"
-    printf '@echo off\r\nrem AntLex OS portable - arranque UEFI (OVMF)\r\nset "DIR=%%~dp0"\r\nif not exist "%%DIR%%ovmf-vars.fd" copy "%%DIR%%fw\\OVMF_VARS_4M.fd" "%%DIR%%ovmf-vars.fd" > nul\r\n"%%DIR%%qemu\\qemu-system-x86_64.exe" -L "%%DIR%%fw" -m 512 -vga std -drive format=raw,file="%%DIR%%antlexos.img" -drive if=pflash,format=raw,file="%%DIR%%fw\\OVMF_CODE_4M.fd",readonly=on -drive if=pflash,format=raw,file="%%DIR%%ovmf-vars.fd" %%*\r\n' > "$WIN/lanzar-uefi.bat"
+    printf '@echo off\r\nrem AntLex OS portable - arranque BIOS\r\nset "DIR=%%~dp0"\r\n"%%DIR%%qemu\\qemu-system-x86_64.exe" -L "%%DIR%%fw" -m 512 -vga std -drive format=raw,file="%%DIR%%antlexos.img" -netdev user,id=red0 -device virtio-net-pci,netdev=red0,disable-legacy=on %%*\r\n' > "$WIN/lanzar.bat"
+    printf '@echo off\r\nrem AntLex OS portable - arranque UEFI (OVMF)\r\nset "DIR=%%~dp0"\r\nif not exist "%%DIR%%ovmf-vars.fd" copy "%%DIR%%fw\\OVMF_VARS_4M.fd" "%%DIR%%ovmf-vars.fd" > nul\r\n"%%DIR%%qemu\\qemu-system-x86_64.exe" -L "%%DIR%%fw" -m 512 -vga std -drive format=raw,file="%%DIR%%antlexos.img" -drive if=pflash,format=raw,file="%%DIR%%fw\\OVMF_CODE_4M.fd",readonly=on -drive if=pflash,format=raw,file="%%DIR%%ovmf-vars.fd" -netdev user,id=red0 -device virtio-net-pci,netdev=red0,disable-legacy=on %%*\r\n' > "$WIN/lanzar-uefi.bat"
     printf '%s\n' "$LEEME_PORTABLE" > "$WIN/LEEME-PORTABLE.txt"
 
     (cd "$SALIDA/portable-windows" && zip -qr "$SALIDA/antlexos-portable-windows-x86_64.zip" antlexos)

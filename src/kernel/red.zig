@@ -25,7 +25,14 @@ const pit = @import("pit.zig");
 // constantes de red (QEMU user networking)
 // ---------------------------------------------------------------------------
 
-pub const IP_NUESTRA = [4]u8{ 10, 0, 2, 15 };
+pub const IP_NUESTRA = [4]u8{ 10, 0, 2, 15 }; // respaldo estático (slirp)
+// Configuración viva (fase 9c: DHCP): arranca con los valores estáticos
+// de slirp y configurarPorDhcp() los sustituye por la concesión real.
+pub var ip_nuestra: [4]u8 = IP_NUESTRA;
+pub var mascara_red: [4]u8 = .{ 255, 255, 255, 0 };
+pub var ip_puerta: [4]u8 = IP_PUERTA;
+pub var ip_dns: [4]u8 = .{ 10, 0, 2, 3 };
+pub var red_por_dhcp = false;
 pub const IP_PUERTA = [4]u8{ 10, 0, 2, 2 };
 
 const ETH_ARP: u16 = 0x0806;
@@ -435,6 +442,21 @@ pub fn init() void {
     var buf: [24]u8 = undefined;
     serial.puts(formatearMac(mac, &buf));
     serial.puts(")\n");
+
+    // Configuración automática por DHCP (fase 9c); sin respuesta queda
+    // la estática de slirp.
+    configurarPorDhcp();
+    if (red_por_dhcp) {
+        serial.puts("red: ip ");
+        serial.puts(formatearIp(ip_nuestra, &buf));
+        serial.puts(" por dhcp (puerta ");
+        serial.puts(formatearIp(ip_puerta, &buf));
+        serial.puts(", dns ");
+        serial.puts(formatearIp(ip_dns, &buf));
+        serial.puts(")\n");
+    } else {
+        serial.puts("red: dhcp sin respuesta; configuracion estatica\n");
+    }
 }
 
 fn buscarVirtio() ?PciDev {
@@ -691,7 +713,7 @@ fn procesarArp(trama: []const u8) void {
     var tpa: [4]u8 = undefined;
     @memcpy(&tpa, trama[38..42]); // 14 + 24 tpa
     if (oper == 2) { // respuesta: ¿es para nuestra IP?
-        if (std.mem.eql(u8, &tpa, &IP_NUESTRA)) {
+        if (std.mem.eql(u8, &tpa, &ip_nuestra)) {
             @memcpy(&arp_ip, &spa);
             @memcpy(&arp_mac, trama[22..28]); // 14 + 8 sha
             arp_valida = true;
@@ -704,11 +726,11 @@ fn procesarArp(trama: []const u8) void {
         }
         return;
     }
-    if (oper == 1 and std.mem.eql(u8, &tpa, &IP_NUESTRA)) { // petición: contestar
+    if (oper == 1 and std.mem.eql(u8, &tpa, &ip_nuestra)) { // petición: contestar
         var mac_solicitante: [6]u8 = undefined;
         @memcpy(&mac_solicitante, trama[22..28]);
         var carga: [28]u8 = undefined;
-        _ = armarPayloadArp(&carga, 2, mac, IP_NUESTRA, mac_solicitante, spa);
+        _ = armarPayloadArp(&carga, 2, mac, ip_nuestra, mac_solicitante, spa);
         _ = enviarTrama(mac_solicitante, ETH_ARP, &carga);
     }
 }
@@ -722,7 +744,11 @@ fn procesarIPv4(trama: []const u8) void {
     if (lon_total < 20 or lon_total > paquete.len) return; // truncado
     var dst: [4]u8 = undefined;
     @memcpy(&dst, paquete[16..20]);
-    if (!std.mem.eql(u8, &dst, &IP_NUESTRA)) return; // no es para nosotros
+    // Aceptamos unicast a nuestra IP y la difusión 255.255.255.255
+    // (las respuestas DHCP llegan difundidas durante la negociación).
+    const es_difusion = dst[0] == 255 and dst[1] == 255 and
+        dst[2] == 255 and dst[3] == 255;
+    if (!es_difusion and !std.mem.eql(u8, &dst, &ip_nuestra)) return;
     var origen: [4]u8 = undefined;
     @memcpy(&origen, paquete[12..16]);
     var mac_origen: [6]u8 = undefined;
@@ -730,6 +756,7 @@ fn procesarIPv4(trama: []const u8) void {
     switch (paquete[9]) {
         PROTO_ICMP => procesarIcmp(paquete[20..lon_total], origen, mac_origen),
         PROTO_TCP => procesarTcp(paquete[20..lon_total]),
+        PROTO_UDP => procesarUdp(paquete[20..lon_total]),
         else => {},
     }
 }
@@ -747,7 +774,7 @@ fn procesarIcmp(icmp: []const u8, ip_origen: [4]u8, mac_origen: [6]u8) void {
         const c = @min(icmp.len - 8, 36); // cabe en el paquete de 64 B
         var paquete: [64]u8 = [_]u8{0} ** 64;
         const n = armarRespuestaEco(paquete[20..], id, seq, icmp[8 .. 8 + c]);
-        _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_ICMP, IP_NUESTRA, ip_origen);
+        _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_ICMP, ip_nuestra, ip_origen);
         _ = enviarTrama(mac_origen, ETH_IPV4, paquete[0 .. 20 + n]);
     }
 }
@@ -787,10 +814,17 @@ pub const EstadisticaPing = struct {
 /// (10.0.2.0/24 con máscara fija) y la puerta de enlace (10.0.2.2) si
 /// no. Sin esto, el ARP de una IP externa no lo responde nadie (slirp
 /// solo contesta por su red virtual) y no hay salida a internet.
+fn mismaRed(ip: [4]u8) bool {
+    var i: usize = 0;
+    while (i < 4) : (i += 1) {
+        if (ip[i] & mascara_red[i] != ip_nuestra[i] & mascara_red[i]) return false;
+    }
+    return true;
+}
+
 fn siguienteSalto(ip: [4]u8) [4]u8 {
-    if (ip[0] == IP_NUESTRA[0] and ip[1] == IP_NUESTRA[1] and ip[2] == IP_NUESTRA[2])
-        return ip;
-    return IP_PUERTA;
+    if (mismaRed(ip)) return ip;
+    return ip_puerta;
 }
 
 fn resolverArp(ip: [4]u8) bool {
@@ -799,7 +833,7 @@ fn resolverArp(ip: [4]u8) bool {
     var intento: u8 = 0;
     while (intento < 3) : (intento += 1) {
         var carga: [28]u8 = undefined;
-        _ = armarPayloadArp(&carga, 1, mac, IP_NUESTRA, .{ 0, 0, 0, 0, 0, 0 }, salto);
+        _ = armarPayloadArp(&carga, 1, mac, ip_nuestra, .{ 0, 0, 0, 0, 0, 0 }, salto);
         if (!enviarTrama(MAC_DIFUSION, ETH_ARP, &carga)) return false;
         const t0 = pit.leerTics();
         while (pit.leerTics() - t0 < 30) { // 300 ms por intento
@@ -832,7 +866,7 @@ pub fn ping(ip: [4]u8) EstadisticaPing {
         eco_recibido = false;
         var paquete: [64]u8 = [_]u8{0} ** 64;
         const n = armarEco(paquete[20..], eco_id, eco_seq, "antlex");
-        _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_ICMP, IP_NUESTRA, ip);
+        _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_ICMP, ip_nuestra, ip);
         eco_t0 = pit.leerTics();
         if (enviarTrama(arp_mac, ETH_IPV4, paquete[0 .. 20 + n])) {
             while (pit.leerTics() - eco_t0 < 100) { // 1 s por eco
@@ -942,9 +976,9 @@ fn enviarSegmentoTcp(banderas: u16, seq: u32, ack: u32, carga: []const u8) bool 
     // Ventana de recepción real: el espacio libre de rx_tcp (con la
     // constante el par enviaba de más y lo sobrante se perdía).
     pones16(&seg, 14, @intCast(rx_tcp.len - rx_tcp_len));
-    pones16(&seg, 16, checksumTcp(IP_NUESTRA, tcp_ip_remota, seg[0..n]));
+    pones16(&seg, 16, checksumTcp(ip_nuestra, tcp_ip_remota, seg[0..n]));
     var paquete: [1600]u8 = undefined;
-    _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_TCP, IP_NUESTRA, tcp_ip_remota);
+    _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_TCP, ip_nuestra, tcp_ip_remota);
     @memcpy(paquete[20 .. 20 + n], seg[0..n]);
     return enviarTrama(arp_mac, ETH_IPV4, paquete[0 .. 20 + n]);
 }
@@ -1183,6 +1217,170 @@ pub fn autopruebaPaquetes() bool {
 // ---------------------------------------------------------------------------
 
 const testing = std.testing;
+
+// =============================================================================
+// Fase 9c — UDP y DHCP: configuración automática de la red
+// =============================================================================
+
+const PROTO_UDP: u8 = 17;
+const IP_DIFUSION = [4]u8{ 255, 255, 255, 255 };
+const DHCP_COOKIE: u32 = 0x63825363;
+
+var dhcp_xid: u32 = 0;
+var dhcp_recibido: u8 = 0; // tipo de la última respuesta (2=OFFER, 5=ACK, 6=NAK)
+var dhcp_yiaddr: [4]u8 = .{ 0, 0, 0, 0 };
+var dhcp_servidor: [4]u8 = .{ 0, 0, 0, 0 };
+var dhcp_mascara: [4]u8 = .{ 255, 255, 255, 0 };
+var dhcp_puerta: [4]u8 = .{ 0, 0, 0, 0 };
+var dhcp_dns: [4]u8 = .{ 0, 0, 0, 0 };
+
+/// Envía un mensaje DHCP por UDP: 68→67 hacia 255.255.255.255 con la MAC
+/// de difusión (sin ARP) y con IP origen 0.0.0.0, como manda el RFC 2131
+/// para un cliente que aún no tiene dirección. El checksum UDP a 0 es
+/// válido en IPv4.
+fn enviarDhcp(mensaje: []const u8) bool {
+    var seg: [320]u8 = undefined;
+    pones16(seg[0..], 0, 68); // puerto origen: cliente DHCP
+    pones16(seg[0..], 2, 67); // puerto destino: servidor DHCP
+    pones16(seg[0..], 4, @intCast(8 + mensaje.len));
+    pones16(seg[0..], 6, 0); // checksum 0 (válido en IPv4)
+    @memcpy(seg[8 .. 8 + mensaje.len], mensaje);
+    var paquete: [360]u8 = undefined;
+    _ = ponerIPv4(&paquete, @intCast(20 + 8 + mensaje.len), PROTO_UDP, .{ 0, 0, 0, 0 }, IP_DIFUSION);
+    @memcpy(paquete[20 .. 28 + mensaje.len], seg[0 .. 8 + mensaje.len]);
+    return enviarTrama(MAC_DIFUSION, ETH_IPV4, paquete[0 .. 28 + mensaje.len]);
+}
+
+/// Mensaje DHCP (BOOTP + opciones): tipo 1 = DISCOVER, 3 = REQUEST (con
+/// la IP ofrecida y el servidor de la oferta). Devuelve 300 bytes fijos.
+fn armarDhcp(tipo: u8, pedir_ip: bool) [300]u8 {
+    var m = [_]u8{0} ** 300;
+    m[0] = 1; // op: BOOTREQUEST
+    m[1] = 1; // htype: Ethernet
+    m[2] = 6; // hlen: MAC
+    pones32(m[0..], 4, dhcp_xid);
+    pones16(m[0..], 10, 0x8000); // flags: respuesta por difusión
+    @memcpy(m[28..34], &mac);
+    pones32(m[0..], 236, DHCP_COOKIE);
+    var i: usize = 240;
+    m[i] = 53; // opción 53: tipo de mensaje
+    m[i + 1] = 1;
+    m[i + 2] = tipo;
+    i += 3;
+    m[i] = 61; // opción 61: identificador de cliente (la MAC)
+    m[i + 1] = 7;
+    m[i + 2] = 1;
+    @memcpy(m[i + 3 .. i + 9], &mac);
+    i += 9;
+    if (pedir_ip) {
+        m[i] = 50; // opción 50: IP solicitada
+        m[i + 1] = 4;
+        @memcpy(m[i + 2 .. i + 6], &dhcp_yiaddr);
+        i += 6;
+        m[i] = 54; // opción 54: servidor de la oferta
+        m[i + 1] = 4;
+        @memcpy(m[i + 2 .. i + 6], &dhcp_servidor);
+        i += 6;
+    }
+    m[i] = 255; // fin de opciones
+    return m;
+}
+
+/// Entrada UDP: solo esperamos respuestas DHCP en el puerto 68.
+fn procesarUdp(segmento: []const u8) void {
+    if (segmento.len < 8) return;
+    if (tomas16(segmento, 2) != 68) return;
+    procesarDhcp(segmento[8..]);
+}
+
+/// Respuesta DHCP (OFFER/ACK/NAK): valida la cookie y el xid de nuestra
+/// transacción y extrae yiaddr, máscara (1), puerta (3), DNS (6) y
+/// servidor (54).
+fn procesarDhcp(mensaje: []const u8) void {
+    if (mensaje.len < 240) return;
+    if (tomas32(mensaje, 236) != DHCP_COOKIE) return;
+    if (tomas32(mensaje, 4) != dhcp_xid) return; // otra transacción
+    var tipo: u8 = 0;
+    var i: usize = 240;
+    while (i + 1 < mensaje.len and mensaje[i] != 255) {
+        const cod = mensaje[i];
+        if (cod == 0) { // relleno
+            i += 1;
+            continue;
+        }
+        const lon = mensaje[i + 1];
+        if (i + 2 + lon > mensaje.len) break;
+        const v = mensaje[i + 2 .. i + 2 + lon];
+        switch (cod) {
+            1 => if (lon == 4) {
+                @memcpy(&dhcp_mascara, v[0..4]);
+            },
+            3 => if (lon >= 4) {
+                @memcpy(&dhcp_puerta, v[0..4]);
+            },
+            6 => if (lon >= 4) {
+                @memcpy(&dhcp_dns, v[0..4]);
+            },
+            54 => if (lon == 4) {
+                @memcpy(&dhcp_servidor, v[0..4]);
+            },
+            53 => if (lon == 1) {
+                tipo = v[0];
+            },
+            else => {},
+        }
+        i += 2 + lon;
+    }
+    if (tipo == 0) return;
+    @memcpy(&dhcp_yiaddr, mensaje[16..20]);
+    dhcp_recibido = tipo;
+}
+
+/// Negocia la configuración por DHCP en el arranque: DISCOVER→OFFER→
+/// REQUEST→ACK, 4 rondas de ~800 ms como máximo. Con la red de usuario
+/// de QEMU (slirp) el servidor DHCP responde al instante y la concesión
+/// es 10.0.2.15/24 puerta 10.0.2.2 DNS 10.0.2.3. Sin respuesta se
+/// conserva la configuración estática de respaldo.
+fn configurarPorDhcp() void {
+    dhcp_xid = 0x4143_0000 ^ @as(u32, @truncate(pit.leerTics()));
+    var ronda: u8 = 0;
+    while (ronda < 4) : (ronda += 1) {
+        dhcp_recibido = 0;
+        const discover = armarDhcp(1, false);
+        if (!enviarDhcp(&discover)) return;
+        var t0 = pit.leerTics();
+        while (pit.leerTics() - t0 < 40) { // 400 ms por ronda
+            procesar();
+            if (dhcp_recibido != 0) break;
+        }
+        if (dhcp_recibido != 2) continue; // no llegó el OFFER
+        dhcp_recibido = 0;
+        const request = armarDhcp(3, true);
+        if (!enviarDhcp(&request)) return;
+        t0 = pit.leerTics();
+        while (pit.leerTics() - t0 < 40) {
+            procesar();
+            if (dhcp_recibido != 0) break;
+        }
+        if (dhcp_recibido == 5) { // ACK: aplicar la concesión
+            @memcpy(&ip_nuestra, &dhcp_yiaddr);
+            @memcpy(&mascara_red, &dhcp_mascara);
+            const cero = [4]u8{ 0, 0, 0, 0 };
+            if (!std.mem.eql(u8, &dhcp_puerta, &cero)) {
+                @memcpy(&ip_puerta, &dhcp_puerta);
+            }
+            if (!std.mem.eql(u8, &dhcp_dns, &cero)) {
+                @memcpy(&ip_dns, &dhcp_dns);
+            }
+            arp_valida = false; // la caché era de la config anterior
+            red_por_dhcp = true;
+            return;
+        }
+        // NAK (6) o silencio: reintentar con otro xid
+        dhcp_xid +%= 1;
+    }
+}
+
 
 test "red: checksum de Internet con vectores verificados" {
     var h: [20]u8 = [_]u8{0} ** 20;

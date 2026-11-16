@@ -108,7 +108,7 @@ def main():
         # 4) estado de la red
         teclear(qmp, "red"); intro(qmp)
         paso("red: dispositivo y MAC", "virtio-net 1.0 — MAC ", ref, serial_path)
-        paso("red: IP estática y puerta", "IP 10.0.2.15 · puerta 10.0.2.2", ref, serial_path)
+        paso("red: IP, máscara y puerta (dhcp)", "IP 10.0.2.15 (dhcp) · mascara 255.255.255.0 · puerta 10.0.2.2", ref, serial_path)
 
         # 5) ping a la puerta: ARP + 3 ecos ICMP (márgenes amplios: la
         #    primera respuesta incluye la resolución ARP)
