@@ -85,10 +85,15 @@ class Qmp:
         self.cmd("input-send-event", {"events": ev})
 
     def combo(self, qcodes):
-        """Compatibilidad: pulsa y suelta el conjunto (p.ej. shift+7)."""
-        ev = [self._ev(q, True) for q in qcodes]
-        ev += [self._ev(q, False) for q in reversed(qcodes)]
-        self.cmd("input-send-event", {"events": ev})
+        """Pulsa el conjunto a la vez y lo suelta (alt+tab, alt+f4...).
+        OJO: con input-send-event estos combos MULTI-TECLA congelan la
+        entrada del kernel (alt-tab mataba teclado y ratón para siempre,
+        verificado en la batería v1.4.0); send-key con hold-time sí
+        funciona y los usos reales van espaciados (sin solape)."""
+        self.cmd("send-key", {
+            "keys": [{"type": "qcode", "data": q} for q in qcodes],
+            "hold-time": 30,
+        })
 
     def cerrar(self):
         self.s.close()
@@ -120,15 +125,18 @@ def teclear_con_igual(qmp, texto):
     las MAYÚSCULAS → shift+letra (los qcodes de QMP son solo minúsculas)."""
     for c in texto:
         if c == "=":
-            qmp.combo(["shift", "0"])  # '=' es shift+0 en ES
+            qmp.tecla("0", shift=True)  # '=' es shift+0 en ES
             time.sleep(0.045)
             continue
         if c == "/":
-            qmp.combo(["shift", "7"])  # '/' es shift+7 en ES
+            qmp.tecla("7", shift=True)  # '/' es shift+7 en ES
             time.sleep(0.045)
             continue
         if "A" <= c <= "Z":
-            qmp.combo(["shift", c.lower()])  # mayúscula
+            # mayúscula con la tecla atómica (con combo de send-key el
+            # shift se soltaba tarde y la letra siguiente llegaba en
+            # mayúscula: "Linea" salía "LInea")
+            qmp.tecla(c.lower(), shift=True)
             time.sleep(0.045)
             continue
         q = QCODES.get(c, c)
