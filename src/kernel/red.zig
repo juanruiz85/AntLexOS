@@ -1381,7 +1381,6 @@ fn configurarPorDhcp() void {
     }
 }
 
-
 test "red: checksum de Internet con vectores verificados" {
     var h: [20]u8 = [_]u8{0} ** 20;
     h[0] = 0x45;
