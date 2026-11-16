@@ -184,12 +184,18 @@ fn hashDe(h: *const Sha256) [32]u8 {
 // bufes de recepción (flujo TCP → registros → mensajes / datos)
 // ---------------------------------------------------------------------------
 
-var rx_flujo: [REGISTRO_MAX + 2100]u8 = undefined;
+// 4 registros máximos + margen: cuando un registro de datos espera a que
+// la entrega se drene, los que llegan detrás tienen que caber aquí (con
+// un solo registro de margen, el flujo desbordaba en las descargas).
+var rx_flujo: [REGISTRO_MAX * 4 + 2100]u8 = undefined;
 var rx_flujo_len: usize = 0;
 var hs_buf: [REGISTRO_MAX + 4]u8 = undefined;
 var hs_buf_len: usize = 0;
 var claro: [REGISTRO_MAX + 16]u8 = undefined;
-var entrega: [8192]u8 = undefined;
+// Un registro de datos máximo (16384 de carga) tiene que caber ENTERO:
+// con 8192 el registro grande nunca entraba y la espera por espacio era
+// infinita (la descarga de la tienda se quedaba en las cabeceras).
+var entrega: [REGISTRO_MAX + 1]u8 = undefined;
 var entrega_len: usize = 0;
 var descifrando_hs = true; // tras Finished del servidor: claves de aplicación
 var fin_notificado = false;

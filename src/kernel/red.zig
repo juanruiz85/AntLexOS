@@ -928,6 +928,9 @@ pub fn armarSegmentoTcp(
 fn enviarSegmentoTcp(banderas: u16, seq: u32, ack: u32, carga: []const u8) bool {
     var seg: [1560]u8 = undefined;
     const n = armarSegmentoTcp(&seg, tcp_puerto_local, tcp_puerto_remoto, seq, ack, banderas, carga);
+    // Ventana de recepción real: el espacio libre de rx_tcp (con la
+    // constante el par enviaba de más y lo sobrante se perdía).
+    pones16(&seg, 14, @intCast(rx_tcp.len - rx_tcp_len));
     pones16(&seg, 16, checksumTcp(IP_NUESTRA, tcp_ip_remota, seg[0..n]));
     var paquete: [1600]u8 = undefined;
     _ = ponerIPv4(&paquete, @intCast(20 + n), PROTO_TCP, IP_NUESTRA, tcp_ip_remota);
@@ -974,15 +977,17 @@ fn procesarTcp(segmento: []const u8) void {
         },
         .conectada, .fin_enviado => {
             if (datos.len > 0) {
-                if (seq == tcp_ack) { // en orden: aceptar y acuse inmediato
+                if (seq == tcp_ack) { // en orden: aceptar lo que quepa
                     const cupo = rx_tcp.len - rx_tcp_len;
                     const n = @min(datos.len, cupo);
                     if (n > 0) {
                         @memcpy(rx_tcp[rx_tcp_len..][0..n], datos[0..n]);
                         rx_tcp_len += n;
+                        tcp_ack = seq +% @as(u32, @intCast(n));
                     }
-                    tcp_ack = seq +% @as(u32, @intCast(datos.len));
                     _ = enviarSegmentoTcp(TCP_ACK, tcp_seq, tcp_ack, "");
+                    // Lo que no cupo NO se acusa: el par lo retransmitirá
+                    // cuando la ventana se abra (tcpRecibir manda el update).
                 } else {
                     // duplicado o fuera de orden: re-ACK con la posición
                     // actual (sin SACK en v1) para forzar retransmisión

@@ -1734,8 +1734,14 @@ fn cmdDescargar(args: []const u8) void {
     // verificar SHA-256 contra el indice
     var digest: [32]u8 = undefined;
     std.crypto.hash.sha2.Sha256.hash(r.cuerpo, &digest, .{});
+    // hex manual: "{x}" sobre un array de bytes antepone "0x" por
+    // elemento (96 chars) y desbordaba el búfer de 64
     var hex: [64]u8 = undefined;
-    _ = std.fmt.bufPrint(&hex, "{x}", .{digest}) catch unreachable;
+    const tabla_hex = "0123456789abcdef";
+    for (digest, 0..) |b, i| {
+        hex[i * 2] = tabla_hex[b >> 4];
+        hex[i * 2 + 1] = tabla_hex[b & 0xF];
+    }
     if (!std.mem.eql(u8, &hex, sha_txt)) {
         fallo("sha256 no coincide: descarga corrupta o indice antiguo");
         return;
@@ -1755,9 +1761,23 @@ fn cmdDescargar(args: []const u8) void {
         fallo("nombre de archivo demasiado largo");
         return;
     };
-    const idx = crearEnRuta(v, destino_s, fmt.TIPO_ARCHIVO, r.cuerpo) catch |err| {
-        alfsOError(err);
-        return;
+    // si ya existía (mkalfs instala CALC y RELOJ de serie), se sustituye:
+    // la tienda también actualiza apps ya instaladas
+    const idx: u16 = if (v.resolverDesde(cwd, destino_s)) |i| blk: {
+        v.escribir(i, r.cuerpo) catch |err| {
+            alfsOError(err);
+            return;
+        };
+        break :blk i;
+    } else |err| switch (err) {
+        Error.NoExiste => crearEnRuta(v, destino_s, fmt.TIPO_ARCHIVO, r.cuerpo) catch |e| {
+            alfsOError(e);
+            return;
+        },
+        else => {
+            alfsOError(err);
+            return;
+        },
     };
     if (!alx.ponerBitEjecutable(idx, true)) {
         fallo("no se pudo marcar como ejecutable");
